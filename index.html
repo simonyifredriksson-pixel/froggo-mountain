@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Froggo Mountain — Expedition</title>
+<link rel="stylesheet" href="style.css" />
+<script>
+  window.addEventListener("error", (e) => {
+    const el = document.getElementById("loadinfo");
+    if (el) el.textContent = "⚠ " + (e.message || (e.error && e.error.message) || "load error");
+  });
+</script>
+</head>
+<body>
+  <div id="game">
+    <canvas id="canvas"></canvas>
+    <div id="crosshair">+</div>
+
+    <div id="hud">
+      <div class="top-left">
+        <div class="alt"><span id="altitude">0</span> m</div>
+        <div class="zone" id="zone">Forest Base</div>
+        <div class="weather" id="weather">☀️ Clear</div>
+        <div class="objective" id="objective"></div>
+      </div>
+      <div class="top-right">
+        <div class="res">🐸 Health</div>
+        <div class="bar"><div id="health-fill" class="fill health"></div></div>
+        <div class="res">🔥 Warmth</div>
+        <div class="bar"><div id="warmth-fill" class="fill warmth"></div></div>
+        <div class="res">⚡ Stamina</div>
+        <div class="bar"><div id="stamina-fill" class="fill stamina"></div></div>
+        <div class="res">✨ <span id="companions">0</span> allies</div>
+      </div>
+
+      <!-- Inventory strip -->
+      <div id="inventory"></div>
+      <div id="gearbar"></div>
+
+      <div id="prompt"></div>
+      <div id="controls-hint">
+        <b>WASD</b> move · <b>Mouse</b> look · <b>Space</b> jump · <b>Shift</b> sprint · <b>E</b> interact ·
+        <b>F</b> allies attack · <b>C</b> craft · <b>L-click</b> sword · hold <b>R-click</b> spin
+      </div>
+    </div>
+
+    <div id="bossbar" class="hidden">
+      <div class="bb-label">❄️ THE SNOW GIANT</div>
+      <div class="bb-track"><div id="bossbar-fill"></div></div>
+    </div>
+
+    <div id="toast"></div>
+    <div id="subtitle"></div>
+    <div id="skiphint">Press <b>Space</b> to skip ▶</div>
+    <div id="dmgflash"></div>
+
+    <!-- Crafting panel -->
+    <div id="craft" class="hidden">
+      <div id="craft-card">
+        <h2>🛠️ Crafting <span id="craft-inv"></span></h2>
+        <div id="recipes"></div>
+        <button id="craft-close">Close (C)</button>
+      </div>
+    </div>
+
+    <!-- Start / End overlay -->
+    <div id="overlay">
+      <div id="overlay-card">
+        <div id="overlay-frog">🐸</div>
+        <h1 id="overlay-title">Froggo Mountain — Expedition</h1>
+        <p id="overlay-text">
+          An open mountain to explore. <b>Gather</b> wood, stone, fiber, herbs and crystals; delve
+          <b>caves</b> for iron ore; and <b>craft</b> climbing gear at will (press <b>C</b>).
+          Towering <b>ice walls</b> block the way up — you must craft a <b>rope</b>, an <b>ice axe</b>
+          and <b>crampons</b> to scale them.<br><br>
+          <b>Free 3 spirit allies</b> trapped in ice and send them to battle <b>frost wolves</b> and
+          <b>rock golems</b> with <b>F</b> (you can't fight alone). Survive blizzards with <b>campfires</b>
+          and a <b>warm coat</b>.<br><br>
+          Climb to the summit and defeat the <b>Guardian</b>. It's a long road — explore everything.
+        </p>
+        <div class="cs-label">Choose your climber:</div>
+        <div id="charselect">
+          <button class="char" data-type="bunny" disabled><div class="ce">🐰</div><div class="cn">Bunny</div><div class="cab">1.5× faster</div></button>
+          <button class="char" data-type="frog" disabled><div class="ce">🐸</div><div class="cn">Frog</div><div class="cab">2× jump height</div></button>
+          <button class="char" data-type="bear" disabled><div class="ce">🐻</div><div class="cn">Bear</div><div class="cab">Allies deal 2× damage</div></button>
+        </div>
+        <div class="hint">Click the screen to capture the mouse · <b>Esc</b> releases it</div>
+        <div class="hint" id="loadinfo">Loading 3D engine…</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="three.min.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
