@@ -27,7 +27,7 @@ addEventListener("resize", onResize); onResize();
 
 // ---------- Lights ----------
 const sun = new THREE.DirectionalLight(0xfff2dc, 2.0);
-sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
 sun.shadow.camera.near = 1; sun.shadow.camera.far = 240; sun.shadow.bias = -0.0004;
 { const c = sun.shadow.camera; c.left = -80; c.right = 80; c.top = 80; c.bottom = -80; }
 scene.add(sun); scene.add(sun.target);
@@ -46,7 +46,7 @@ const skyMat = new THREE.ShaderMaterial({
 const sky = new THREE.Mesh(new THREE.SphereGeometry(500, 24, 14), skyMat); sky.frustumCulled = false; scene.add(sky);
 
 // ---------- Terrain ----------
-const SIZE = 420, HALF = SIZE / 2, SEGS = 180;
+const SIZE = 700, HALF = SIZE / 2, SEGS = 200;
 function heightAt(x, z) {
   let h = 0;
   h += (z + HALF) * 0.15;
@@ -93,6 +93,7 @@ const G = {
   box: new THREE.BoxGeometry(1, 1, 1), sph: new THREE.SphereGeometry(1, 16, 12),
   cone: new THREE.ConeGeometry(1, 1, 12), ico: new THREE.IcosahedronGeometry(1, 0),
   cyl: new THREE.CylinderGeometry(1, 1, 1, 10), dome: new THREE.SphereGeometry(1, 22, 12, 0, 6.2832, 0, Math.PI * 0.55),
+  tri: (() => { const s = new THREE.Shape(); s.moveTo(-1, 0); s.lineTo(1, 0); s.lineTo(0, 1); s.closePath(); return new THREE.ShapeGeometry(s); })(),
 };
 function mat(o) { return new THREE.MeshStandardMaterial(o); }
 function P(group, g, m, pos, rot, scl, noSh) {
@@ -286,24 +287,44 @@ function buildBear() {
   return g;
 }
 function buildSnowGiant() {
-  const s = 3.2;
-  const ice = mat({ color: 0xcfe9ff, roughness: 0.5, flatShading: true }), iceD = mat({ color: 0xa6cfee, roughness: 0.5, flatShading: true }),
-        eye = mat({ color: 0x113355, emissive: 0x5ad0ff, emissiveIntensity: 2.2 }), teeth = mat({ color: 0xffffff, roughness: 0.3 }), mouthM = mat({ color: 0x08202f });
+  // a BIPEDAL icy beast (built at unit scale, the whole group is scaled in spawnBoss)
   const g = new THREE.Group();
-  P(g, G.ico, ice, [0, 1.7 * s, 0], [0.3, 0.4, 0], [1.25 * s, 1.55 * s, 1.05 * s]);   // torso
-  for (let i = 0; i < 7; i++) { const a = i / 7 * 6.28; P(g, G.ico, iceD, [Math.cos(a) * 0.95 * s, (1.1 + Math.sin(a * 2) * 0.5) * s, Math.sin(a) * 0.45 * s + 0.55 * s], null, [0.5 * s, 0.5 * s, 0.5 * s]); } // lumps
-  P(g, G.ico, ice, [0, 2.95 * s, 0.3 * s], [0.2, 0.7, 0], [0.75 * s, 0.62 * s, 0.72 * s]); // head (hunched)
-  P(g, G.box, mouthM, [0, 2.82 * s, 0.88 * s], null, [0.72 * s, 0.18 * s, 0.12 * s]);       // grin
-  for (let i = 0; i < 5; i++) P(g, G.box, teeth, [(-0.26 + i * 0.13) * s, 2.82 * s, 0.93 * s], null, [0.07 * s, 0.16 * s, 0.06 * s], true);
-  P(g, G.sph, eye, [-0.24 * s, 3.12 * s, 0.62 * s], null, [0.08 * s, 0.08 * s, 0.08 * s], true);
-  P(g, G.sph, eye, [0.24 * s, 3.12 * s, 0.62 * s], null, [0.08 * s, 0.08 * s, 0.08 * s], true);
-  const arms = [], legs = [];
+  const ice = mat({ color: 0xe2f0ff, roughness: 0.5, flatShading: true }), iceD = mat({ color: 0xb6d8f2, roughness: 0.5, flatShading: true }),
+        eye = mat({ color: 0x331100, emissive: 0xffb030, emissiveIntensity: 2.2 }), teeth = mat({ color: 0xffffff, roughness: 0.3 }), mouthM = mat({ color: 0x7a1838 });
+  const legs = [], arms = [];
+  // two big hind legs it stands on
+  for (const sx of [-1, 1]) { legs.push(P(g, G.box, iceD, [sx * 0.85, 1.3, -0.2], null, [0.8, 2.6, 1.0])); P(g, G.box, ice, [sx * 0.85, 0.2, 0.4], null, [0.85, 0.4, 1.4]); }
+  // upright torso leaning forward
+  P(g, G.sph, ice, [0, 3.1, 0.2], [0.25, 0, 0], [1.35, 1.7, 1.3]);
+  P(g, G.sph, iceD, [0, 2.4, 0.75], null, [1.0, 1.0, 0.85]);              // belly
+  const blue = mat({ color: 0x9ccdf0, emissive: 0x4a8fd8, emissiveIntensity: 0.5, roughness: 0.4, flatShading: true });
+  for (let i = 0; i < 7; i++) { const t = i / 6, h = 0.55 + Math.sin(t * Math.PI) * 0.8; P(g, G.cone, blue, [0, 3.95 - i * 0.42, -0.35 - i * 0.18], [-0.3, 0, 0], [0.5, h, 0.12]); } // blue dorsal fins
+  // neck + head
+  P(g, G.sph, ice, [0, 4.05, 0.95], null, [0.78, 0.82, 0.8]);
+  P(g, G.box, ice, [0, 4.45, 1.95], null, [1.05, 0.62, 1.5]);            // snout
+  P(g, G.box, mouthM, [0, 4.15, 2.15], null, [0.9, 0.26, 1.2]);          // maw
+  const jaw = new THREE.Group(); jaw.position.set(0, 4.05, 1.3); g.add(jaw);   // hinge at back of jaw
+  P(jaw, G.box, iceD, [0, -0.17, 0.6], null, [0.95, 0.4, 1.3]);          // lower jaw
+  for (let i = 0; i < 5; i++) P(jaw, G.box, teeth, [-0.34 + i * 0.17, -0.03, 1.2], null, [0.07, 0.18, 0.07], true);
+  for (let i = 0; i < 5; i++) P(g, G.box, teeth, [-0.34 + i * 0.17, 4.28, 2.6], null, [0.07, 0.22, 0.07], true);
+  P(g, G.sph, eye, [-0.38, 4.8, 1.65], null, [0.13, 0.13, 0.13], true);
+  P(g, G.sph, eye, [0.38, 4.8, 1.65], null, [0.13, 0.13, 0.13], true);
+  P(g, G.cone, iceD, [-0.4, 5.15, 1.45], [-0.3, 0, -0.2], [0.16, 0.7, 0.16]);
+  P(g, G.cone, iceD, [0.4, 5.15, 1.45], [-0.3, 0, 0.2], [0.16, 0.7, 0.16]);
+  // counterbalancing tail in its own group so it can sway
+  const tail = new THREE.Group(); tail.position.set(0, 2.6, -1.2); g.add(tail);
+  for (let i = 0; i < 6; i++) { const t = i / 6; P(tail, G.cone, i >= 4 ? blue : (i % 2 ? ice : iceD), [0, -t * 1.7, -i * 0.78], [Math.PI / 2 - 0.5, 0, 0], [0.5 - t * 0.34, 1.0, 0.5 - t * 0.34]); }
+  // small raised front arms (used for attacks)
+  for (const sx of [-1, 1]) { const arm = P(g, G.box, iceD, [sx * 1.0, 3.1, 0.95], [-0.7, 0, 0], [0.35, 0.95, 0.35]); P(g, G.cone, ice, [sx * 1.0, 2.6, 1.45], [0.5, 0, 0], [0.13, 0.35, 0.13]); arms.push(arm); }
+  // jagged ice spikes — shoulders, arms, head crest, tail tip
   for (const sx of [-1, 1]) {
-    arms.push(P(g, G.ico, iceD, [sx * 1.75 * s, 1.7 * s, 0], [0, 0, sx * 0.2], [0.58 * s, 1.35 * s, 0.58 * s]));
-    P(g, G.ico, ice, [sx * 1.85 * s, 0.5 * s, 0], null, [0.62 * s, 0.62 * s, 0.62 * s]);   // fists
-    legs.push(P(g, G.ico, iceD, [sx * 0.62 * s, 0.6 * s, 0], null, [0.62 * s, 0.95 * s, 0.72 * s]));
+    P(g, G.cone, blue, [sx * 1.15, 3.7, 0.0], [0, 0, sx * 0.6], [0.24, 1.0, 0.24]);   // big shoulder spike
+    P(g, G.cone, blue, [sx * 0.75, 3.95, 0.1], [-0.2, 0, sx * 0.25], [0.16, 0.6, 0.16]);
+    P(g, G.cone, blue, [sx * 1.05, 3.5, 1.05], [-1.0, 0, 0], [0.12, 0.5, 0.12]);       // arm spike
   }
-  g.userData = { arms, legs, walk: 0, gScale: s };
+  P(g, G.cone, blue, [0, 5.4, 1.2], [-0.2, 0, 0], [0.18, 0.8, 0.18]);                  // head crest
+  P(g, G.cone, blue, [0, 0.85, -5.05], [Math.PI / 2 - 0.5, 0, 0], [0.22, 1.3, 0.22]);  // tail-tip spike
+  g.userData = { arms, legs, jaw, tail, walk: 0 };
   return g;
 }
 const BUILDERS = { frog: buildFrog, bunny: buildBunny, bear: buildBear };
@@ -320,8 +341,8 @@ function setCharacter(type) {
   player.allyDmgMul = type === "bear" ? 2 : 1;
   player.swordMesh = null; player.shieldMesh = null; player.swing = 0; player.spinning = false; player.spinAngle = 0;
 }
-const ALT_SCALE = 2;
-const START_Z = -HALF + 20;
+const ALT_SCALE = 5;
+const START_Z = -HALF + 25;
 const START_Y = groundY(0, START_Z);
 const frog = { x: 0, z: START_Z, y: 0, vx: 0, vy: 0, vz: 0, yaw: 0, hp: 100, warmth: 100, stamina: 100, climb: null };
 frog.y = groundY(frog.x, frog.z);
@@ -345,24 +366,28 @@ function billboard(bar, root, frac, yOff) {
 }
 
 // ---------- Collections ----------
-const monsters = [], allies = [], trees = [], nodes = [], fires = [], caves = [], gates = [], chests = [], rooms = [];
+const monsters = [], allies = [], trees = [], nodes = [], fires = [], caves = [], gates = [], chests = [], rooms = [], pickups = [];
+const houses = [], villagers = [], crevasses = [];
 const bossFx = { waves: [], icicles: [], pillars: [] };
-let boss = null, underground = null;
+let boss = null, underground = null, guardian = null, villageHostile = false, inHouse = null;
+let avState = "idle", avTimer = 45, avT = 0, avCount = 0;
 function placeOnGround(root, x, z) { root.position.set(x, groundY(x, z), z); }
 
 // ---------- Inventory & gear ----------
-const inv = { wood: 0, stone: 0, iron: 0, fiber: 0, herb: 0, crystal: 0 };
-const gear = { rope: false, axe: false, crampons: false, coat: false, torch: false, sword: false, shield: false };
-const RES_ICON = { wood: "🪵", stone: "🪨", iron: "🔩", fiber: "🧶", herb: "🌿", crystal: "💎" };
-const GEAR_ICON = { rope: "🪢", axe: "🪓", crampons: "🥾", coat: "🧥", torch: "🔦", sword: "🗡️", shield: "🛡️" };
+const inv = { wood: 0, stone: 0, iron: 0, fiber: 0, herb: 0, crystal: 0, leather: 0 };
+const gear = { rope: false, axe: false, crampons: false, coat: false, torch: false, sword: false, shield: false, jacket: false, boots: false };
+const RES_ICON = { wood: "🪵", stone: "🪨", iron: "🔩", fiber: "🧶", herb: "🌿", crystal: "💎", leather: "🟫" };
+const GEAR_ICON = { rope: "🪢", axe: "🪓", crampons: "🥾", coat: "🧥", torch: "🔦", sword: "🗡️", shield: "🛡️", jacket: "🦺", boots: "👢" };
 
 const RECIPES = [
   { id: "campfire", name: "Campfire 🔥", cost: { wood: 5, stone: 2 }, repeat: true, desc: "Place at your feet. Stand near it to restore warmth." },
-  { id: "rope", name: "Climbing Rope 🪢", cost: { fiber: 6 }, desc: "Scale the first ice wall." },
-  { id: "axe", name: "Ice Axe 🪓", cost: { wood: 4, iron: 3 }, desc: "Scale the second ice wall. Mines faster." },
-  { id: "crampons", name: "Crampons 🥾", cost: { stone: 4, fiber: 3 }, desc: "Scale the final glacier. Far less slipping on ice." },
+  { id: "rope", name: "Climbing Rope 🪢", cost: { fiber: 10 }, desc: "Scale the first glacier." },
+  { id: "axe", name: "Ice Axe 🪓", cost: { wood: 6, iron: 5 }, lock: 0, desc: "Scale the second glacier · mines faster. (Unlocks after the 1st glacier)" },
+  { id: "crampons", name: "Crampons 🥾", cost: { stone: 8, fiber: 6, iron: 3 }, lock: 1, desc: "Scale the final glacier · less slipping. (Unlocks after the 2nd glacier)" },
   { id: "coat", name: "Warm Coat 🧥", cost: { fiber: 6, herb: 2 }, desc: "Lose warmth half as fast." },
   { id: "torch", name: "Torch 🔦", cost: { wood: 2, fiber: 1 }, desc: "Light up the dark caves." },
+  { id: "jacket", name: "Leather Jacket 🦺", cost: { leather: 6 }, desc: "Lose warmth far slower (made from monster leather)." },
+  { id: "boots", name: "Leather Boots 👢", cost: { leather: 4 }, desc: "Move 20% faster (made from monster leather)." },
   { id: "salve", name: "Healing Salve 🧪", cost: { herb: 3, crystal: 2 }, repeat: true, desc: "Instantly restore 50 health." },
 ];
 
@@ -408,19 +433,19 @@ function spawnNode(type, x, z) {
 }
 
 function spawnCave(x, z, basementLoot) {
-  const R = 12;
+  const R = 12, floorY = groundY(x, z);
   const cave = new THREE.Group();
-  const dome = new THREE.Mesh(G.dome, M.caveRock);
-  dome.position.set(0, -0.5, 0); dome.scale.set(R, R * 0.85, R); dome.receiveShadow = true; cave.add(dome);
-  const entA = -Math.PI / 2, entHalf = 0.5;
-  const ex = Math.cos(entA) * R, ez = Math.sin(entA) * R;
-  const mouth = P(cave, G.box, mat({ color: 0x04060a }), [ex, 3, ez], null, [6.5, 6, 2]); mouth.castShadow = false;
-  P(cave, G.box, M.caveRock, [ex - 4, 3.2, ez], null, [2.2, 7, 3]);
-  P(cave, G.box, M.caveRock, [ex + 4, 3.2, ez], null, [2.2, 7, 3]);
-  P(cave, G.box, M.caveRock, [ex, 6.5, ez], null, [9, 2, 3]);
-  cave.position.set(x, groundY(x, z), z);
-  scene.add(cave);
-  const caveObj = { x, z, R, entA, entHalf, root: cave, basement: null };
+  // smooth rock dome (no flat-shading banding)
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(R, 32, 18, 0, 6.2832, 0, Math.PI * 0.55),
+    mat({ color: 0x595e68, roughness: 1, side: THREE.DoubleSide }));
+  dome.position.set(0, -0.4, 0); dome.scale.set(1, 0.9, 1); dome.receiveShadow = true; cave.add(dome);
+  // smooth flat floor inside
+  P(cave, G.cyl, mat({ color: 0x71757d, roughness: 1 }), [0, 0.05, 0], null, [R * 0.97, 0.4, R * 0.97]);
+  // clean dark doorway on the downhill (-z) side
+  const entA = -Math.PI / 2, entHalf = 0.32;
+  const door = P(cave, G.box, mat({ color: 0x05070b }), [0, 3, -R + 0.5], null, [7, 6, 1.2]); door.castShadow = false;
+  cave.position.set(x, floorY, z); scene.add(cave);
+  const caveObj = { x, z, R, entA, entHalf, root: cave, basement: null, floorY };
   caves.push(caveObj);
   for (let i = 0; i < 3; i++) { const a = Math.random()*6.28, r = 2 + Math.random()*R*0.5; spawnNode("iron", x + Math.cos(a)*r, z + Math.sin(a)*r); }
   for (let i = 0; i < 2; i++) { const a = Math.random()*6.28, r = 2 + Math.random()*R*0.5; spawnNode("crystal", x + Math.cos(a)*r, z + Math.sin(a)*r); }
@@ -435,27 +460,48 @@ function spawnCave(x, z, basementLoot) {
     P(room, G.cyl, M.caveRock, [0, 16, 0], null, [RR, 0.6, RR]);                    // ceiling
     room.position.set(x, roomY, z); scene.add(room); rooms.push(room);
     // rope (down in cave, and the same shaft back up)
-    const ropeMat = mat({ color: 0x9a6a3a, roughness: 0.9 });
-    const ropeMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, gy - roomY, 6), ropeMat);
-    ropeMesh.position.set(rx, (gy + roomY) / 2, rz); scene.add(ropeMesh); rooms.push(ropeMesh);
+    // glowing rope so it's always visible (sticks up above the grass + into the bottom floor)
+    const ropeMat = mat({ color: 0xb07a3a, emissive: 0xffcc55, emissiveIntensity: 1.5, roughness: 0.8 });
+    const ropeTop = gy + 4;
+    const ropeMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, ropeTop - roomY, 8), ropeMat);
+    ropeMesh.position.set(rx, (ropeTop + roomY) / 2, rz); scene.add(ropeMesh); rooms.push(ropeMesh);
+    // little post + ring at the top so it's obvious where to descend
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.12, 6, 16), ropeMat);
+    ring.rotation.x = Math.PI / 2; ring.position.set(rx, ropeTop, rz); scene.add(ring); rooms.push(ring);
     const bm = { roomY, cx: x, cz: z, RR, ropeX: rx, ropeZ: rz, topY: gy };
     caveObj.basement = bm;
-    // chests: first guaranteed loot, rest random with 20% trap
+    // exactly 1 safe chest (the loot) + 2 dangerous (trap) chests
     const spots = [[x - 5, z - 4], [x + 4, z + 5], [x - 3, z + 6]];
-    for (let i = 0; i < spots.length; i++) {
-      const isTrap = i === 0 ? false : Math.random() < 0.2;
-      let loot = "crystal";
-      if (i === 0) loot = basementLoot;                    // guaranteed sword or shield
-      else if (!isTrap) loot = Math.random() < 0.5 ? "salveBig" : "crystal";
-      spawnChest(spots[i][0], roomY, spots[i][1], isTrap, loot);
+    const safeIdx = Math.floor(Math.random() * 3);
+    for (let i = 0; i < 3; i++) {
+      const isTrap = i !== safeIdx;
+      spawnChest(spots[i][0], roomY, spots[i][1], isTrap, isTrap ? null : basementLoot);
     }
   }
 }
+function makeSkull() {
+  const g = new THREE.Group();
+  const w = mat({ color: 0xf2f2f2, roughness: 0.6 }), b = mat({ color: 0x111111 });
+  P(g, G.sph, w, [0, 0, 0], null, [0.24, 0.26, 0.22]);                      // cranium
+  P(g, G.sph, b, [-0.1, 0.02, 0.18], null, [0.07, 0.08, 0.05], true);       // eyes
+  P(g, G.sph, b, [0.1, 0.02, 0.18], null, [0.07, 0.08, 0.05], true);
+  P(g, G.box, w, [0, -0.2, 0.16], null, [0.16, 0.12, 0.1]);                 // jaw
+  return g;
+}
 function spawnChest(x, y, z, isTrap, loot) {
   const g = new THREE.Group();
-  P(g, G.box, mat({ color: 0x6b4327, roughness: 0.85 }), [0, 0.4, 0], null, [1.3, 0.8, 0.9]);
-  const lid = P(g, G.box, mat({ color: 0x8a5a32, roughness: 0.85 }), [0, 0.82, -0.4], null, [1.35, 0.4, 0.95]);
-  P(g, G.box, mat({ color: 0xffd27a, emissive: 0x553300, emissiveIntensity: 0.5 }), [0, 0.5, 0.46], null, [0.22, 0.3, 0.12], true);
+  const wood = mat({ color: 0x6b4327, roughness: 0.8 }), wood2 = mat({ color: 0x57341d, roughness: 0.8 }),
+        metal = mat({ color: 0x3a3d44, metalness: 0.6, roughness: 0.4 }), gold = mat({ color: 0xffd24a, metalness: 0.5, roughness: 0.3 });
+  P(g, G.box, wood, [0, 0.42, 0], null, [1.5, 0.85, 1.0]);                  // base
+  const lid = new THREE.Group();
+  P(lid, G.cyl, wood2, [0, 0, 0], [0, 0, Math.PI / 2], [0.5, 1.5, 0.5]);    // rounded lid
+  P(lid, G.box, metal, [-0.45, 0, 0], [0, 0, Math.PI / 2], [0.52, 0.14, 0.52]);
+  P(lid, G.box, metal, [0.45, 0, 0], [0, 0, Math.PI / 2], [0.52, 0.14, 0.52]);
+  lid.position.set(0, 0.86, 0); g.add(lid);
+  P(g, G.box, metal, [-0.55, 0.42, 0], null, [0.12, 0.9, 1.04]);            // side bands
+  P(g, G.box, metal, [0.55, 0.42, 0], null, [0.12, 0.9, 1.04]);
+  P(g, G.box, gold, [0, 0.5, 0.52], null, [0.24, 0.3, 0.12], true);         // lock
+  if (isTrap) { const sk = makeSkull(); sk.position.set(0, 1.25, 0.45); sk.scale.setScalar(0.95); g.add(sk); }
   g.position.set(x, y, z); g.userData.lid = lid; scene.add(g);
   chests.push({ root: g, lid, x, z, y, isTrap, loot, opened: false });
 }
@@ -487,8 +533,16 @@ function placeCampfire() {
   P(g, G.cyl, mat({ color: 0x5a3a1f }), [0, 0.15, 0], null, [0.6, 0.3, 0.6]);
   const flame = P(g, G.cone, mat({ color: 0xff8a2a, emissive: 0xff5a00, emissiveIntensity: 2.2 }), [0, 0.85, 0], null, [0.5, 1.1, 0.5], true);
   const light = new THREE.PointLight(0xff8a3a, 3, 22); light.position.y = 1.4; g.add(light);
-  placeOnGround(g, frog.x, frog.z); scene.add(g);
-  fires.push({ g, flame, x: frog.x, z: frog.z });
+  g.position.set(frog.x, frog.y, frog.z); scene.add(g);   // at the player's current floor
+  fires.push({ g, flame, x: frog.x, z: frog.z, t: 0 });
+}
+function updateFires(dt, now) {
+  for (let i = fires.length - 1; i >= 0; i--) {
+    const f = fires[i]; f.t += dt;
+    if (f.t > 20) { scene.remove(f.g); fires.splice(i, 1); continue; }
+    f.flame.scale.y = 1 + Math.sin(now * 0.02) * 0.2;
+    if (f.t > 16) f.g.visible = (Math.floor(now / 200) % 2 === 0); // blink before vanishing
+  }
 }
 
 // ---------- Spawners ----------
@@ -500,10 +554,11 @@ function spawnMonster(kind, x, z, st) {
 }
 function spawnBoss(x, z) {
   const root = buildSnowGiant(); const gy = groundY(x, z);
-  root.position.set(x, gy - 20, z); scene.add(root);   // buried under the snow
+  const S = 2.3; root.scale.setScalar(S); root.userData.gScale = S;
+  root.position.set(x, gy - 13, z); scene.add(root);   // buried under the snow
   const bar = makeBar(0x9be0ff); scene.add(bar);
-  boss = { root, bar, hp: 1300, maxHp: 1300, kind: "boss", walk: 0, atkAnim: 0,
-           state: "dormant", buriedY: gy - 20, standY: gy, x, z, atkTimer: 3.5, armRaise: 0 };
+  boss = { root, bar, S, hp: 2400, maxHp: 2400, kind: "boss", walk: 0, atkAnim: 0,
+           state: "dormant", buriedY: gy - 13, standY: gy, x, z, atkTimer: 3.5, armRaise: 0, slam: -1, slamHit: false, punch: -1, punchHit: false, fire: -1, fireHit: false, fireDx: 0, fireDz: 1 };
 }
 function spawnTrappedAlly(name, builder, kind, x, z, atk) {
   const root = builder(); placeOnGround(root, x, z); scene.add(root);
@@ -512,6 +567,18 @@ function spawnTrappedAlly(name, builder, kind, x, z, atk) {
   const bar = makeBar(0x55dd55); scene.add(bar);
   allies.push({ root, bar, ice, hp: 160, maxHp: 160, atk, cd: 0, kind, state: "trapped", hits: 0, need: 6, name, slot: allies.length, target: null });
 }
+
+// ---------- Summit flag ----------
+const SUMMIT_Z = HALF - 22;
+const flag = new THREE.Group();
+{
+  P(flag, G.cyl, mat({ color: 0x999999, metalness: 0.4, roughness: 0.5 }), [0, 3, 0], null, [0.12, 6, 0.12]);
+  const cloth = P(flag, G.box, mat({ color: 0xff3344, side: THREE.DoubleSide }), [1.1, 5, 0], null, [2.2, 1.3, 0.06]);
+  flag.userData.cloth = cloth;
+}
+flag.position.set(0, groundY(0, SUMMIT_Z), SUMMIT_Z);
+flag.visible = false;
+scene.add(flag);
 
 // ---------- Snow (GPU) ----------
 const SNOW_MAX = 4000, SNOW_BOX = 80;
@@ -549,10 +616,10 @@ function setWeather(w) {
 
 // ---------- Input ----------
 const keys = {};
-addEventListener("keydown", (e) => { keys[e.key.toLowerCase()] = true; if (e.key === " ") { keys[" "] = true; e.preventDefault(); } });
-addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; if (e.key === " ") keys[" "] = false; });
+addEventListener("keydown", (e) => { keys[e.key.toLowerCase()] = true; if (e.code === "Space" || e.key === " ") { keys[" "] = true; e.preventDefault(); } });
+addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; if (e.code === "Space" || e.key === " ") keys[" "] = false; });
 
-let camYaw = 0, camPitch = 0.42, camDist = 11;
+let camYaw = 0, camPitch = 0.42, camDist = 11, camDistCur = 11;
 canvas.addEventListener("click", () => { if (!cutscene && running && !craftOpen) canvas.requestPointerLock(); });
 addEventListener("mousemove", (e) => {
   if (document.pointerLockElement === canvas) {
@@ -562,7 +629,7 @@ addEventListener("mousemove", (e) => {
 });
 
 // ---------- HUD ----------
-let running = false, won = false, craftOpen = false, nearInteract = null, cutscene = null;
+let running = false, won = false, craftOpen = false, nearInteract = null, cutscene = null, inCaveNow = false;
 function toast(msg) { const el = document.getElementById("toast"); el.innerHTML = msg; el.classList.add("show"); clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove("show"), 2800); }
 function setPrompt(msg) { const el = document.getElementById("prompt"); if (msg) { el.innerHTML = msg; el.classList.add("show"); } else el.classList.remove("show"); }
 function setSubtitle(msg) { const el = document.getElementById("subtitle"); if (msg) { el.innerHTML = msg; el.classList.add("show"); } else el.classList.remove("show"); }
@@ -591,12 +658,14 @@ function renderCraft() {
   const box = document.getElementById("recipes"); box.innerHTML = "";
   for (const r of RECIPES) {
     const owned = !r.repeat && gear[r.id];
-    const ok = has(r.cost) && !owned;
+    const locked = r.lock !== undefined && !(gates[r.lock] && gates[r.lock].climbed);
+    const ok = has(r.cost) && !owned && !locked;
+    const label = owned ? "✓ Crafted" : locked ? `🔒 Climb glacier ${r.lock + 1} first` : (ok ? "Craft" : "Need materials");
     const div = document.createElement("div");
     div.className = "recipe" + (owned ? " have" : "");
     div.innerHTML = `<div class="rn">${r.name}</div><div class="rd">${r.desc}</div>
       <div class="rc">${Object.keys(r.cost).map(k => `${RES_ICON[k]}${r.cost[k]}`).join("  ")}</div>
-      <button ${ok ? "" : "disabled"}>${owned ? "✓ Crafted" : "Craft"}</button>`;
+      <button ${ok ? "" : "disabled"}>${label}</button>`;
     const btn = div.querySelector("button");
     if (ok) btn.onclick = () => { craft(r); renderCraft(); };
     box.appendChild(div);
@@ -623,55 +692,73 @@ function startGame() {
   frog.x = 0; frog.z = -HALF + 20; frog.vx = frog.vy = frog.vz = 0; frog.hp = 100; frog.warmth = 100; frog.stamina = 100; frog.climb = null;
   frog.y = groundY(frog.x, frog.z);
   for (const k in inv) inv[k] = 0; for (const k in gear) gear[k] = false; torchLight.intensity = 0;
-  won = false; underground = null;
+  won = false; underground = null; inCaveNow = false;
+  ambient.intensity = 0.28; hemi.intensity = 0.9; torchLight.intensity = 0;
+  for (const p of dmgPopups) p.el.remove(); dmgPopups.length = 0;
+  for (const p of pickups) scene.remove(p.g); pickups.length = 0;
   if (boss) { scene.remove(boss.root); scene.remove(boss.bar); boss = null; }
+  if (guardian) { scene.remove(guardian.root); scene.remove(guardian.bar); guardian = null; }
+  clearArr(houses); clearArr(villagers); crevasses.length = 0;
+  villageHostile = false; avState = "idle"; avTimer = 45; avCount = 0; avMesh.visible = false; document.getElementById("avwarn").classList.add("hidden");
+  frog.crevasse = null; frog.crevImmune = 0; inHouse = null;
+  flag.visible = true; fireBreath.visible = false; if (ambulance) { scene.remove(ambulance); ambulance = null; }
   document.getElementById("bossbar").classList.add("hidden");
   for (const m of rooms) scene.remove(m); rooms.length = 0;
   for (const w of bossFx.waves) scene.remove(w.mesh); for (const ic of bossFx.icicles) scene.remove(ic.mesh); for (const p of bossFx.pillars) if (p.mesh) scene.remove(p.mesh);
   bossFx.waves.length = bossFx.icicles.length = bossFx.pillars.length = 0;
   clearArr(monsters); clearArr(allies); clearArr(trees); clearArr(nodes); clearArr(fires); clearArr(caves); clearArr(gates); clearArr(chests);
 
-  // trees + bushes + stone spread across the WHOLE map (so wood/stone is always available)
-  for (let i = 0; i < 300; i++) {
+  // trees + bushes + stone spread across the WHOLE (much bigger) map
+  for (let i = 0; i < 480; i++) {
     const x = (Math.random()-0.5)*(SIZE-30), z = (Math.random()-0.5)*(SIZE-30);
     if (slopeInfo(x,z).slope > 0.95) continue;
     const f = (z + HALF) / SIZE;
     const roll = Math.random();
-    if (roll < 0.44 && trees.length < 80) { const t = makeTree2(); placeOnGround(t, x, z); t.rotation.y = Math.random()*6.28; scene.add(t); trees.push({ root: t, x, z, hits: 0, fallen: false, falling: 0, shake: 0 }); }
+    if (roll < 0.44 && trees.length < 110) { const t = makeTree2(); placeOnGround(t, x, z); t.rotation.y = Math.random()*6.28; scene.add(t); trees.push({ root: t, x, z, hits: 0, fallen: false, falling: 0, shake: 0 }); }
     else if (roll < 0.58) spawnNode("bush", x, z);
     else if (roll < 0.70) spawnNode("stone", x, z);
     else if (roll > 0.93 && f > 0.35) spawnNode("crystal", x, z);
   }
-  // a few rock decorations high up
-  for (let i = 0; i < 14; i++) { const x=(Math.random()-0.5)*(SIZE-20), z=40+Math.random()*(HALF-20); const r=makeRockDecor(); placeOnGround(r,x,z); scene.add(r); }
+  for (let i = 0; i < 22; i++) { const x=(Math.random()-0.5)*(SIZE-20), z=0+Math.random()*(HALF-20); const r=makeRockDecor(); placeOnGround(r,x,z); scene.add(r); }
 
-  // caves (iron + crystals); two have a second floor with chests (sword / shield)
-  spawnCave(-95, -75, "sword"); spawnCave(90, 5); spawnCave(-70, 80, "shield"); spawnCave(70, 160);
-  // a little surface iron too
-  for (let i = 0; i < 6; i++) spawnNode("iron", (Math.random()-0.5)*(SIZE-40), -20 + Math.random()*120);
+  // glacier gates spread along the long climb
+  spawnGate(-160, "rope", 60, "Rope");
+  spawnGate(-10, "axe", -70, "Ice Axe");
+  spawnGate(170, "crampons", 30, "Crampons");
 
-  // glacier gates (z lines kept clear of caves)
-  spawnGate(-30, "rope", 40, "Rope");
-  spawnGate(45, "axe", -55, "Ice Axe");
-  spawnGate(125, "crampons", 25, "Crampons");
+  // caves (kept clear of the glacier z-lines); two have a second floor (sword / shield)
+  spawnCave(30, -250, "sword");   // start zone — second floor with the sword
+  spawnCave(95, -90); spawnCave(-95, -90);
+  spawnCave(-80, 70, "shield");   // beyond the 2nd glacier — second floor with the shield
+  spawnCave(80, 250);
+  for (let i = 0; i < 8; i++) spawnNode("iron", (Math.random()-0.5)*(SIZE-60), -120 + Math.random()*240);
 
   // allies (the third is frozen inside a cave!)
-  spawnTrappedAlly("Ember", buildFox, "fox", -12, -64, 19);
-  spawnTrappedAlly("Sprout", buildDragon, "dragon", 22, 20, 23);
-  spawnTrappedAlly("Hoot", buildOwl, "owl", -70, 80, 21); // inside cave 3
+  spawnTrappedAlly("Ember", buildFox, "fox", -16, -230, 19);     // free, before glacier 1
+  spawnTrappedAlly("Sprout", buildDragon, "dragon", 24, -90, 23);// behind glacier 1
+  spawnTrappedAlly("Hoot", buildOwl, "owl", -80, 70, 21);        // inside cave 4, behind glacier 2
 
-  // monsters scale by altitude
-  const wolf = () => ({ hp: 55, maxHp: 55, atk: 10, speed: 5.2 });
-  const golem = () => ({ hp: 160, maxHp: 160, atk: 22, speed: 2.8 });
-  spawnMonster("wolf", 18, 18, wolf()); spawnMonster("wolf", 30, 28, wolf());
-  spawnMonster("golem", -60, 74, golem()); spawnMonster("wolf", -80, 88, wolf());
-  for (let i = 0; i < 12; i++) {
-    const x = (Math.random()-0.5)*(SIZE-50), z = 0 + Math.random()*(HALF-10);
-    const hi = z > 80;
-    spawnMonster(hi || Math.random()<0.4 ? "golem" : "wolf", x, z, hi || Math.random()<0.4 ? golem() : wolf());
+  // monsters — more of them, tougher, spread over the long mountain
+  const wolf = () => ({ hp: 70, maxHp: 70, atk: 12, speed: 5.0 });
+  const golem = () => ({ hp: 200, maxHp: 200, atk: 26, speed: 3.2 });
+  spawnMonster("wolf", 20, -90, wolf()); spawnMonster("wolf", 30, -80, wolf());
+  spawnMonster("golem", -70, 60, golem()); spawnMonster("wolf", -90, 80, wolf());
+  for (let i = 0; i < 26; i++) {
+    const x = (Math.random()-0.5)*(SIZE-60), z = -120 + Math.random()*(HALF + 100);
+    const hi = z > 120;
+    spawnMonster(hi || Math.random()<0.45 ? "golem" : "wolf", x, z, hi || Math.random()<0.45 ? golem() : wolf());
   }
-  spawnBoss(0, HALF - 28);
+  spawnBoss(0, HALF - 40);
   flag.visible = true; flag.rotation.set(0, 0, 0); flag.position.set(0, groundY(0, SUMMIT_Z), SUMMIT_Z);
+
+  // peaceful village near the start + shelter huts up in the avalanche zone
+  spawnVillage(-55, -270);
+  spawnHouse(50, 50, 0.5); spawnHouse(-45, 140, 2.2); spawnHouse(35, 240, 4);
+  // loot chests inside the cabin (mid resources)
+  spawnChest(cabinRoom.cx - 4, cabinRoom.fy, cabinRoom.cz - 6, false, "supplies"); chests[chests.length - 1].cabin = true;
+  spawnChest(cabinRoom.cx + 4, cabinRoom.fy, cabinRoom.cz - 6, false, "supplies"); chests[chests.length - 1].cabin = true;
+  // hidden crevasses across the upper mountain
+  for (let i = 0; i < 16; i++) { const x = (Math.random() - 0.5) * (SIZE - 50), z = -120 + Math.random() * (HALF + 90); spawnCrevasse(x, z); }
 
   setWeather("clear"); weatherTimer = 26; running = true;
   document.getElementById("overlay").classList.add("hidden"); toggleCraft(false);
@@ -722,6 +809,25 @@ function updateFrog(dt) {
     if (k >= 1) { underground = r.enter ? r.bm : null; frog.rope = null; fm.arms[0].rotation.x = fm.arms[1].rotation.x = 0; }
     return;
   }
+
+  // stuck in a crevasse — hold E to climb out
+  if (frog.crevasse) {
+    const cv = frog.crevasse;
+    frog.x = cv.x; frog.z = cv.z; frog.y = cv.floorY; frog.vx = frog.vy = frog.vz = 0;
+    frogModel.position.set(frog.x, frog.y, frog.z);
+    if (keys["e"]) cv.climb += dt;
+    setPrompt(`Hold <b>E</b> to climb out of the crevasse (${Math.max(0, 1.6 - cv.climb).toFixed(1)}s)`);
+    const ph = Math.sin(performance.now() * 0.02);
+    if (fm.arms) { fm.arms[0].rotation.x = -1.4 + ph * 0.7; fm.arms[1].rotation.x = -1.4 - ph * 0.7; }
+    if (cv.climb >= 1.6) {
+      frog.y = cv.topY; frog.crevasse = null; frog.crevImmune = 2.5; frog.hp -= 33;
+      if (fm.arms) { fm.arms[0].rotation.x = fm.arms[1].rotation.x = 0; }
+      toast("🧗 Climbed out of the crevasse! -33 health");
+      if (frog.hp <= 0) return lose();
+    }
+    return;
+  }
+  if (frog.crevImmune > 0) frog.crevImmune -= dt;
   const under = underground;
 
   camBasis();
@@ -733,13 +839,19 @@ function updateFrog(dt) {
 
   const len = Math.hypot(ix, iz);
   const wantSprint = keys["shift"] && frog.stamina > 1 && len > 0;
-  const speed = (wantSprint ? SPRINT : WALK) * player.speedMul;
+  const speed = (wantSprint ? SPRINT : WALK) * player.speedMul * (gear.boots ? 1.2 : 1);
   if (wantSprint) frog.stamina = Math.max(0, frog.stamina - 28 * dt); else frog.stamina = Math.min(100, frog.stamina + 16 * dt);
 
-  const gy = under ? under.roomY : groundY(frog.x, frog.z);
+  let curCave = null;
+  if (!under && !inHouse) for (const c of caves) { if (Math.hypot(frog.x - c.x, frog.z - c.z) < c.R) { curCave = c; break; } }
+  let gy;
+  if (inHouse) gy = inHouse.fy;
+  else if (under) gy = under.roomY;
+  else if (curCave) { const dr = Math.hypot(frog.x - curCave.x, frog.z - curCave.z); const tt = Math.min(1, Math.max(0, (curCave.R - dr) / (curCave.R * 0.35))); gy = groundY(frog.x, frog.z) * (1 - tt) + curCave.floorY * tt; }
+  else gy = groundY(frog.x, frog.z);
   const onGround = frog.y <= gy + 0.06 && frog.vy <= 0.01;
-  const si = under ? { slope: 0, downX: 0, downZ: 0 } : slopeInfo(frog.x, frog.z);
-  const icy = under ? false : isIcy(frog.x, frog.z);
+  const si = (under || curCave || inHouse) ? { slope: 0, downX: 0, downZ: 0 } : slopeInfo(frog.x, frog.z);
+  const icy = (under || curCave || inHouse) ? false : isIcy(frog.x, frog.z);
 
   let grip = 1.0;
   if (icy) grip *= gear.crampons ? 0.7 : 0.13;
@@ -772,7 +884,10 @@ function updateFrog(dt) {
   frog.x += frog.vx * dt; frog.z += frog.vz * dt; frog.y += frog.vy * dt;
 
   let inCave = !!under;
-  if (under) {
+  if (inHouse) {
+    frog.x = Math.max(inHouse.cx - (inHouse.hx - 1), Math.min(inHouse.cx + (inHouse.hx - 1), frog.x));
+    frog.z = Math.max(inHouse.cz - (inHouse.hz - 1), Math.min(inHouse.cz + (inHouse.hz - 1), frog.z));
+  } else if (under) {
     // bound inside the underground room
     const dx = frog.x - under.cx, dz = frog.z - under.cz, dr = Math.hypot(dx, dz);
     if (dr > under.RR - 1.5) { frog.x = under.cx + dx / dr * (under.RR - 1.5); frog.z = under.cz + dz / dr * (under.RR - 1.5); }
@@ -781,18 +896,38 @@ function updateFrog(dt) {
     frog.z = Math.max(-HALF + 4, Math.min(HALF - 4, frog.z));
     // glacier gates block upward progress until climbed
     for (const g of gates) { if (!g.climbed && frog.z > g.z - 1.2) { frog.z = g.z - 1.2; if (frog.vz > 0) frog.vz = 0; } }
-    // cave walls are solid — only the entrance gap lets you through
+    // cave walls are solid — push the frog to the correct side (smooth slide), entrance gap is open
     for (const c of caves) {
-      const drN = Math.hypot(frog.x - c.x, frog.z - c.z);
-      if (drN < c.R * 0.92) inCave = true;
-      let ang = Math.atan2(frog.z - c.z, frog.x - c.x), ad = Math.abs(ang - c.entA);
+      const dx = frog.x - c.x, dz = frog.z - c.z, dr = Math.hypot(dx, dz) || 0.001;
+      if (dr < c.R) inCave = true;
+      let ang = Math.atan2(dz, dx), ad = Math.abs(ang - c.entA);
       if (ad > Math.PI) ad = 2 * Math.PI - ad;
-      if (ad >= c.entHalf) { const drP = Math.hypot(prevX - c.x, prevZ - c.z); if ((drP - c.R) * (drN - c.R) < 0) { frog.x = prevX; frog.z = prevZ; frog.vx = 0; frog.vz = 0; } }
+      if (ad >= c.entHalf) {
+        const wasIn = Math.hypot(prevX - c.x, prevZ - c.z) < c.R;
+        if (wasIn && dr > c.R - 0.8) { const k = (c.R - 0.8) / dr; frog.x = c.x + dx * k; frog.z = c.z + dz * k; }
+        else if (!wasIn && dr < c.R + 1.0) { const k = (c.R + 1.0) / dr; frog.x = c.x + dx * k; frog.z = c.z + dz * k; }
+      }
     }
   }
 
-  const ngy = under ? under.roomY : groundY(frog.x, frog.z);
+  let ncave = null;
+  if (!under && !inHouse) for (const c of caves) { if (Math.hypot(frog.x - c.x, frog.z - c.z) < c.R) { ncave = c; break; } }
+  let ngy;
+  if (inHouse) ngy = inHouse.fy;
+  else if (under) ngy = under.roomY;
+  else if (ncave) { const dr = Math.hypot(frog.x - ncave.x, frog.z - ncave.z); const tt = Math.min(1, Math.max(0, (ncave.R - dr) / (ncave.R * 0.35))); ngy = groundY(frog.x, frog.z) * (1 - tt) + ncave.floorY * tt; }
+  else ngy = groundY(frog.x, frog.z);
   if (frog.y <= ngy) { if (frog.vy < -24) { const d = (-frog.vy - 24) * 1.7; frog.hp -= d; if (d > 6) toast("💥 Hard landing!"); } frog.y = ngy; frog.vy = 0; }
+
+  // fall into a hidden crevasse
+  if (!under && !frog.crevasse && frog.crevImmune <= 0 && frog.y <= ngy + 0.2) {
+    for (const cr of crevasses) {
+      if (Math.hypot(frog.x - cr.x, frog.z - cr.z) < cr.r * 0.7) {
+        const cy = groundY(cr.x, cr.z); frog.crevasse = { x: cr.x, z: cr.z, climb: 0, floorY: cy - 5, topY: cy };
+        toast("🕳️ You fell into a hidden crevasse!"); break;
+      }
+    }
+  }
 
   // ---- smooth turning + walk animation ----
   const hv = Math.hypot(frog.vx, frog.vz);
@@ -815,22 +950,28 @@ function updateFrog(dt) {
   }
   if (fm.ears) { const e = sw * (moving ? 0.3 : 0.05); fm.ears[0].rotation.x = -e; fm.ears[1].rotation.x = e; }
 
-  // ---- warmth: campfire warms, cave is neutral (no freeze, no recovery) ----
+  // ---- warmth: campfire warms (even in caves); caves shelter from drain ----
   let nearFire = false; for (const f of fires) if (Math.hypot(frog.x - f.x, frog.z - f.z) < 6) nearFire = true;
-  const drain = wc.drain * (gear.coat ? 0.5 : 1);
-  if (inCave) { /* sheltered — warmth holds steady */ }
-  else if (nearFire) frog.warmth = Math.min(100, frog.warmth + 20 * dt);
+  const drain = wc.drain * (gear.coat ? 0.5 : 1) * (gear.jacket ? 0.55 : 1);
+  if (nearFire) frog.warmth = Math.min(100, frog.warmth + 20 * dt);
+  else if (inCave || under || inHouse || (boss && boss.state === "active")) { /* sheltered / fighting the boss — warmth holds */ }
   else { frog.warmth -= drain * dt; if (frog.warmth <= 0) { frog.warmth = 0; frog.hp -= 6 * dt; } }
 
-  // cave darkness + torch (dark, but you can still make out shapes)
-  const targetAmb = (under || inCave) ? 0.06 : 0.28;
-  const targetHemi = (under || inCave) ? 0.13 : 0.9;
-  ambient.intensity += (targetAmb - ambient.intensity) * Math.min(1, dt * 4);
-  hemi.intensity += (targetHemi - hemi.intensity) * Math.min(1, dt * 4);
-  const wantTorch = ((inCave || under) && gear.torch) ? 3.4 : 0;
+  // lighting: top-floor caves stay LIT, the underground bottom floor is INSTANTLY pitch black
+  inCaveNow = !!under;
+  if (under) { ambient.intensity = 0; hemi.intensity = 0; }
+  else {
+    ambient.intensity += (0.28 - ambient.intensity) * Math.min(1, dt * 4);
+    hemi.intensity += (0.9 - hemi.intensity) * Math.min(1, dt * 4);
+  }
+  const wantTorch = (under && gear.torch) ? 4.0 : 0;
   torchLight.intensity += (wantTorch - torchLight.intensity) * Math.min(1, dt * 5);
-  torchLight.distance = 30;
-  torchLight.position.set(frog.x, frog.y + 2.5, frog.z);
+  torchLight.distance = 13;   // only lights nearby — must approach a chest to see its skull
+  torchLight.position.set(frog.x, frog.y + 2.2, frog.z);
+  // snow must not clip into caves/houses
+  let nearCave = under || inHouse;
+  for (const c of caves) if (Math.hypot(frog.x - c.x, frog.z - c.z) < c.R + 6) nearCave = true;
+  snow.visible = !nearCave && WEATHER[weather].snow > 0;
 
   // touching the flag awakens the Snow Giant
   if (boss && boss.state === "dormant" && !cutscene && Math.hypot(frog.x, frog.z - SUMMIT_Z) < 8) startAwaken();
@@ -843,11 +984,27 @@ const _camPos = new THREE.Vector3();
 let camInit = false;
 function updateCamera(snap) {
   const cx = Math.sin(camYaw) * Math.cos(camPitch), cz = Math.cos(camYaw) * Math.cos(camPitch), cy = Math.sin(camPitch);
-  const dist = underground ? 6.5 : camDist;
+  // keep the camera inside whatever cave you're in (no peeking through walls)
+  let confine = null;
+  if (!inHouse) {
+    if (underground) confine = { cx: underground.cx, cz: underground.cz, r: underground.RR - 1.5, top: underground.roomY + 14 };
+    else for (const c of caves) { if (Math.hypot(frog.x - c.x, frog.z - c.z) < c.R * 0.95) { confine = { cx: c.x, cz: c.z, r: c.R - 1.5, top: c.floorY + c.R * 0.78 }; break; } }
+  }
+  const dist = inHouse ? 6 : (confine ? 5.5 : camDist);
+  if (snap || !camInit) camDistCur = dist; else camDistCur += (dist - camDistCur) * 0.1;   // smooth zoom in/out of caves
   const tx = frog.x, ty = frog.y + 2, tz = frog.z;
-  _camPos.set(tx - cx * dist, ty + cy * dist + 1, tz - cz * dist);
+  _camPos.set(tx - cx * camDistCur, ty + cy * camDistCur + 1, tz - cz * camDistCur);
   if (snap || !camInit) { camera.position.copy(_camPos); camInit = true; } else camera.position.lerp(_camPos, 0.16);
-  if (!underground) { const minY = groundY(camera.position.x, camera.position.z) + 1.4; if (camera.position.y < minY) camera.position.y = minY; }
+  if (inHouse) {
+    camera.position.x = Math.max(inHouse.cx - (inHouse.hx - 0.8), Math.min(inHouse.cx + (inHouse.hx - 0.8), camera.position.x));
+    camera.position.z = Math.max(inHouse.cz - (inHouse.hz - 0.8), Math.min(inHouse.cz + (inHouse.hz - 0.8), camera.position.z));
+    camera.position.y = Math.max(inHouse.fy + 1.4, Math.min(inHouse.fy + 4.6, camera.position.y));
+  } else if (confine) {
+    const dx = camera.position.x - confine.cx, dz = camera.position.z - confine.cz, dr = Math.hypot(dx, dz);
+    if (dr > confine.r) { camera.position.x = confine.cx + dx / dr * confine.r; camera.position.z = confine.cz + dz / dr * confine.r; }
+    if (camera.position.y > confine.top) camera.position.y = confine.top;
+    if (!underground) { const mY = groundY(camera.position.x, camera.position.z) + 1.0; if (camera.position.y < mY) camera.position.y = mY; }
+  } else { const minY = groundY(camera.position.x, camera.position.z) + 1.4; if (camera.position.y < minY) camera.position.y = minY; }
   camera.lookAt(tx, ty, tz);
   sky.position.copy(camera.position);
   sun.position.set(frog.x + 60, frog.y + 100, frog.z + 40); sun.target.position.set(frog.x, frog.y, frog.z);
@@ -856,6 +1013,10 @@ function updateCamera(snap) {
 
 // ---------- Interact (E) ----------
 function findInteract() {
+  if (inHouse) {
+    for (const c of chests) { if (c.cabin && !c.opened && Math.hypot(frog.x - c.x, frog.z - c.z) < 3.5) return { best: c, type: "chest" }; }
+    return { best: inHouse, type: "houseExit" };
+  }
   if (underground) {
     let best = null, bd = 3.6;
     for (const c of chests) { if (c.opened) continue; const d = Math.hypot(frog.x - c.x, frog.z - c.z); if (d < bd) { bd = d; best = c; } }
@@ -869,9 +1030,11 @@ function findInteract() {
   for (const a of allies) { if (a.state !== "trapped") continue; const d = Math.hypot(frog.x - a.root.position.x, frog.z - a.root.position.z); if (d < 4.5 && d < bd + 1) { bd = d; best = a; type = "ally"; } }
   for (const c of caves) { if (!c.basement) continue; if (Math.hypot(frog.x - c.basement.ropeX, frog.z - c.basement.ropeZ) < 3) return { best: c.basement, type: "ropeDown" }; }
   for (const g of gates) { if (g.climbed) continue; if (frog.z < g.z && g.z - frog.z < 4.5) return { best: g, type: "gate" }; }
+  for (const h of houses) { if (h.fallen) continue; if (Math.hypot(frog.x - h.x, frog.z - h.z) < 4) return { best: h, type: "houseEnter" }; }
   return best ? { best, type } : null;
 }
 function interactPrompt() {
+  if (frog.crevasse) return;   // keep the crevasse climb prompt
   const it = findInteract(); nearInteract = it;
   if (!it) { setPrompt(""); return; }
   if (it.type === "tree") setPrompt(`Press <b>E</b> to chop tree (${it.best.hits}/4)`);
@@ -881,6 +1044,8 @@ function interactPrompt() {
   else if (it.type === "ropeDown") setPrompt(`Press <b>E</b> to climb down the rope ⬇️`);
   else if (it.type === "ropeUp") setPrompt(`Press <b>E</b> to climb back up ⬆️`);
   else if (it.type === "chest") setPrompt(`Press <b>E</b> to open the chest`);
+  else if (it.type === "houseEnter") setPrompt(`Press <b>E</b> to enter the cabin 🚪`);
+  else if (it.type === "houseExit") setPrompt(`Press <b>E</b> to leave the cabin 🚪`);
 }
 function doInteract() {
   const it = nearInteract; if (!it) return;
@@ -911,12 +1076,19 @@ function doInteract() {
     const u = it.best;
     frog.rope = { t: 0, dur: 1.6, x: u.ropeX, z: u.ropeZ, y0: u.roomY, y1: u.topY, enter: false };
     toast("⬆️ Climbing up…");
+  } else if (it.type === "houseEnter") {
+    inHouse = { exitX: frog.x, exitZ: frog.z, cx: cabinRoom.cx, cz: cabinRoom.cz, fy: cabinRoom.fy, hx: cabinRoom.hx, hz: cabinRoom.hz };
+    frog.x = cabinRoom.cx; frog.z = cabinRoom.cz + 6; frog.y = cabinRoom.fy; frog.vx = frog.vy = frog.vz = 0; frog.yaw = Math.PI; camInit = false;
+    toast("🚪 You step inside the cozy cabin.");
+  } else if (it.type === "houseExit") {
+    const h = it.best; frog.x = h.exitX; frog.z = h.exitZ; frog.y = groundY(frog.x, frog.z); inHouse = null; camInit = false; toast("🚪 Back outside.");
   } else if (it.type === "chest") {
     const c = it.best; if (c.opened) return; c.opened = true; c.lid.rotation.x = -1.9;
     if (c.isTrap) { frog.hp = Math.max(0, frog.hp - 33); damageFlash(); toast("💥 It's a TRAP! Lost a third of your health."); }
     else if (c.loot === "sword") { gear.sword = true; attachWeapon("sword"); toast("🗡️ A Sword! Left-click to swing · hold Right-click to spin-attack."); }
     else if (c.loot === "shield") { gear.shield = true; attachWeapon("shield"); toast("🛡️ A Shield! Blocks 45% of incoming damage."); }
     else if (c.loot === "salveBig") { frog.hp = Math.min(100, frog.hp + 60); toast("🧪 A healing draught! +60 health."); }
+    else if (c.loot === "supplies") { inv.stone += 4; inv.fiber += 4; inv.leather += 2; toast("📦 Supplies! +4 🪨 +4 🧶 +2 🟫"); }
     else { inv.crystal += 4; toast("💎 +4 crystals"); }
     updateHud();
   }
@@ -944,14 +1116,44 @@ function attachWeapon(type) {
 }
 function meleeHit(range, dmg, frontal) {
   const fx = Math.sin(frog.yaw), fz = Math.cos(frog.yaw);
-  const tryHit = (m, extra) => {
+  const tryHit = (m, extra, yoff) => {
     const dx = m.root.position.x - frog.x, dz = m.root.position.z - frog.z, d = Math.hypot(dx, dz);
-    if (d > range + extra) return;
-    if (frontal && d > 1) { const dot = (dx * fx + dz * fz) / d; if (dot < 0.0) return; }
+    if (d > range + extra) return false;
+    if (frontal && d > 1) { const dot = (dx * fx + dz * fz) / d; if (dot < 0.0) return false; }
     m.hp -= dmg; m.root.scale.multiplyScalar(0.95);
+    showDamage(m.root.position.x, m.root.position.y + (yoff || 3), m.root.position.z, dmg);
+    return true;
   };
   for (const m of monsters) if (m.hp > 0) tryHit(m, 0);
-  if (boss && boss.state === "active" && boss.hp > 0) tryHit(boss, 7);
+  if (boss && boss.state === "active" && boss.hp > 0) tryHit(boss, boss.S * 1.5, boss.S * 4);
+  // village entities are hittable — striking any of them angers the guardian
+  for (const vg of villagers) if (vg.hp > 0 && tryHit(vg, 0.4, 2)) angerVillage();
+  if (guardian && guardian.hp > 0 && tryHit(guardian, 1.5, 3.5)) angerVillage();
+  for (const h of houses) if (h.hp > 0) {
+    if (Math.hypot(h.x - frog.x, h.z - frog.z) < range + 2.5) { h.hp -= dmg; showDamage(h.x, groundY(h.x, h.z) + 3.5, h.z, dmg); angerVillage(); }
+  }
+}
+
+// ---------- Floating damage numbers ----------
+const dmgPopups = [];
+const _dv = new THREE.Vector3();
+function showDamage(x, y, z, amount) {
+  const el = document.createElement("div");
+  el.className = "dmgnum"; el.textContent = "-" + Math.round(amount);
+  document.getElementById("dmgnums").appendChild(el);
+  dmgPopups.push({ x, y, z, life: 0.2, el });
+}
+function updateDmgPopups(dt) {
+  for (let i = dmgPopups.length - 1; i >= 0; i--) {
+    const p = dmgPopups[i]; p.life -= dt;
+    if (p.life <= 0) { p.el.remove(); dmgPopups.splice(i, 1); continue; }
+    _dv.set(p.x, p.y, p.z).project(camera);
+    if (_dv.z > 1) { p.el.style.display = "none"; continue; }
+    p.el.style.display = "block";
+    p.el.style.left = (_dv.x * 0.5 + 0.5) * innerWidth + "px";
+    p.el.style.top = (-_dv.y * 0.5 + 0.5) * innerHeight + "px";
+    p.el.style.opacity = Math.min(1, p.life / 0.2 + 0.2);
+  }
 }
 function updateCombat(dt) {
   if (!frogModel || frog.climb || frog.rope) return;
@@ -986,10 +1188,16 @@ window.addEventListener("mouseup", (e) => { if (e.button === 2) rmbDown = false;
 window.addEventListener("blur", () => { rmbDown = false; });
 
 // ---------- Combat ----------
-function moveTowards(root, tx, tz, step) {
-  const dx = tx - root.position.x, dz = tz - root.position.z, d = Math.hypot(dx, dz) || 1;
-  root.position.x += (dx / d) * step; root.position.z += (dz / d) * step;
-  root.position.y = groundY(root.position.x, root.position.z) + Math.abs(Math.sin(performance.now()*0.01)) * 0.12;
+function moveTowards(root, tx, tz, step, collide) {
+  const px = root.position.x, pz = root.position.z;
+  const dx = tx - px, dz = tz - pz, d = Math.hypot(dx, dz) || 1;
+  let nx = px + (dx / d) * step, nz = pz + (dz / d) * step;
+  if (collide) {
+    for (const g of gates) { if ((pz - g.z) * (nz - g.z) < 0) nz = g.z - (nz > pz ? 1.5 : -1.5); }  // can't cross glacier walls
+    for (const c of caves) { const cr = Math.hypot(nx - c.x, nz - c.z) || 1; if (cr < c.R + 1.5) { const k = (c.R + 1.5) / cr; nx = c.x + (nx - c.x) * k; nz = c.z + (nz - c.z) * k; } } // kept out of caves
+  }
+  root.position.x = nx; root.position.z = nz;
+  root.position.y = groundY(nx, nz) + Math.abs(Math.sin(performance.now() * 0.01)) * 0.12;
   root.rotation.y = Math.atan2(dx, dz);
 }
 function nearestMonster(x, z, maxD) {
@@ -1018,7 +1226,7 @@ function updateAllies(dt) {
     if (!a.target) { const m = nearestMonster(a.root.position.x, a.root.position.z, 20); if (m) a.target = m; }
     if (a.target) {
       const e = a.target, ex = e.root.position.x, ez = e.root.position.z, d = Math.hypot(ex - a.root.position.x, ez - a.root.position.z);
-      const reach = e.kind === "boss" ? 3.4 : 1.9;
+      const reach = e.kind === "boss" ? (e.S || 9) * 1.4 : 1.9;
       if (d > reach) moveTowards(a.root, ex, ez, (a.kind === "owl" ? 7 : 6) * dt);
       else { a.root.rotation.y = Math.atan2(ex - a.root.position.x, ez - a.root.position.z); if (a.cd <= 0) { e.hp -= a.atk * player.allyDmgMul; a.cd = 0.55; e.root.scale.multiplyScalar(0.96); } }
     } else {
@@ -1045,18 +1253,25 @@ function monsterAI(m, dt, aggro) {
   let moved = false;
   if (t.td < aggro) {
     m.aggro = true; const reach = m.kind === "boss" ? 3.6 : (m.kind === "golem" ? 2.4 : 1.8);
-    if (t.td > reach) { moveTowards(m.root, t.tx, t.tz, m.speed * dt); moved = true; }
+    if (t.td > reach) { moveTowards(m.root, t.tx, t.tz, m.speed * dt, true); moved = true; }
     else {
       m.root.rotation.y = Math.atan2(t.tx - x, t.tz - z);
       if (m.cd <= 0) {
         m.cd = m.kind === "golem" ? 1.4 : (m.kind === "boss" ? 1.6 : 1.0); m.atkAnim = 0.28; m.root.scale.multiplyScalar(1.12);
-        if (t.tgt) t.tgt.hp -= m.atk; else { frog.hp -= m.atk; damageFlash(); }
+        if (t.tgt) t.tgt.hp -= m.atk;
+        else {
+          frog.hp -= m.atk; damageFlash();
+          if (m.kind === "golem") {                 // golems fling you back a little
+            const dx = frog.x - x, dz = frog.z - z, dd = Math.hypot(dx, dz) || 1;
+            frog.vx += dx / dd * 9; frog.vz += dz / dd * 9; if (frog.vy < 5) frog.vy = 6;
+          }
+        }
       }
     }
   } else {
     m.aggro = false; m.wanderT -= dt;
     if (m.wanderT <= 0) { m.wanderT = 2 + Math.random()*3; m.tx = x + (Math.random()-0.5)*24; m.tz = z + (Math.random()-0.5)*24; }
-    if (Math.hypot(m.tx - x, m.tz - z) > 1) { moveTowards(m.root, m.tx, m.tz, m.speed * 0.4 * dt); moved = true; }
+    if (Math.hypot(m.tx - x, m.tz - z) > 1) { moveTowards(m.root, m.tx, m.tz, m.speed * 0.4 * dt, true); moved = true; }
   }
   // animation
   if (moved) m.walk += m.speed * dt * 1.4;
@@ -1065,11 +1280,31 @@ function monsterAI(m, dt, aggro) {
   if (ud.arms) { const a = moved ? 0.3 : 0.05; ud.arms[0].rotation.x = Math.sin(m.walk * 0.7) * a - atk * 1.1; ud.arms[1].rotation.x = -Math.sin(m.walk * 0.7) * a - atk * 1.1; }
   if (m.kind === "wolf") m.root.rotation.x = -0.45 * atk;
 }
+function killMonster(m) {
+  m.removed = true; scene.remove(m.root); scene.remove(m.bar);
+  dropLoot(m); toast("💀 Monster slain! 🟫 dropped leather");
+}
+function dropLoot(m) {
+  const amt = m.kind === "golem" ? 3 : 2;
+  const g = new THREE.Group();
+  P(g, G.box, mat({ color: 0x8a5a2b, roughness: 0.85 }), [0, 0, 0], null, [0.55, 0.32, 0.42]);
+  P(g, G.box, mat({ color: 0x6e4524, roughness: 0.85 }), [0, 0, 0], null, [0.6, 0.14, 0.46]);
+  const gx = m.root.position.x, gz = m.root.position.z;
+  g.position.set(gx, groundY(gx, gz) + 0.8, gz); scene.add(g);
+  pickups.push({ g, x: gx, z: gz, amount: amt });
+}
+function updatePickups(dt) {
+  for (let i = pickups.length - 1; i >= 0; i--) {
+    const p = pickups[i];
+    p.g.rotation.y += dt * 2.2; p.g.position.y = groundY(p.x, p.z) + 0.8 + Math.sin(performance.now() * 0.004) * 0.15;
+    if (Math.hypot(frog.x - p.x, frog.z - p.z) < 2.6) { inv.leather += p.amount; toast(`🟫 +${p.amount} leather`); scene.remove(p.g); pickups.splice(i, 1); updateHud(); }
+  }
+}
 function updateMonsters(dt) {
   for (const m of monsters) {
-    if (m.hp <= 0) continue;
-    monsterAI(m, dt, 24);
-    if (m.hp <= 0) { scene.remove(m.root); m.bar.visible = false; toast("💀 Monster slain!"); continue; }
+    if (m.hp <= 0) { if (!m.removed) killMonster(m); continue; }   // remove the moment it dies, wherever the killing blow came from
+    monsterAI(m, dt, 30);
+    if (m.hp <= 0) { killMonster(m); continue; }
     const show = m.aggro || m.hp < m.maxHp; m.bar.visible = show; if (show) billboard(m.bar, m.root, m.hp / m.maxHp, m.kind === "golem" ? 3.4 : 2.4);
   }
   if (boss) updateBoss(dt);
@@ -1079,26 +1314,79 @@ function updateMonsters(dt) {
 function playerHurt(dmg) { frog.hp = Math.max(0, frog.hp - dmg * (gear.shield ? 0.55 : 1)); damageFlash(); }
 function updateBoss(dt) {
   if (boss.state !== "active") return;
+  const tnow = performance.now(), br = 1 + Math.sin(tnow * 0.003) * 0.02;   // breathing
+  boss.root.scale.lerp(tmpS.set(boss.S * br, boss.S * br, boss.S * br), 0.25);
+  const ud = boss.root.userData, Rr = boss.S * 1.4;
   const dx = frog.x - boss.x, dz = frog.z - boss.z, d = Math.hypot(dx, dz);
   boss.root.rotation.y = Math.atan2(dx, dz);
-  if (d > 11) { boss.x += dx / d * 3.0 * dt; boss.z += dz / d * 3.0 * dt; boss.walk += dt * 3; }
+  let moving = false;
+  if (d > Rr) { boss.x += dx / d * 6 * dt; boss.z += dz / d * 6 * dt; boss.walk += dt * 7; moving = true; }
   boss.root.position.set(boss.x, groundY(boss.x, boss.z), boss.z);
-  const ud = boss.root.userData;
-  if (ud.legs) { const a = d > 11 ? 0.3 : 0; for (let i = 0; i < ud.legs.length; i++) ud.legs[i].rotation.x = Math.sin(boss.walk + (i ? Math.PI : 0)) * a; }
-  boss.armRaise = Math.max(0, (boss.armRaise || 0) - dt * 2.2);
-  if (ud.arms) { ud.arms[0].rotation.x = -boss.armRaise; ud.arms[1].rotation.x = -boss.armRaise; }
+  if (ud.legs) { const a = moving ? 0.4 : 0; for (let i = 0; i < ud.legs.length; i++) ud.legs[i].rotation.x = Math.sin(boss.walk + (i ? Math.PI : 0)) * a; }
+  // always-on idle animations: tail sway, jaw chomp
+  if (ud.tail) ud.tail.rotation.y = Math.sin(tnow * 0.0018) * 0.28 + (moving ? Math.sin(boss.walk) * 0.12 : 0);
+  if (ud.jaw) ud.jaw.rotation.x = 0.1 + Math.abs(Math.sin(tnow * 0.0017)) * 0.3;
+  // keep the stolen flag planted on his head
+  flag.visible = true;
+  const ffwd = boss.S * 1.1, fhy = groundY(boss.x, boss.z) + boss.S * 4.4;
+  flag.position.set(boss.x + Math.sin(boss.root.rotation.y) * ffwd, fhy, boss.z + Math.cos(boss.root.rotation.y) * ffwd);
+  flag.rotation.set(0.12, boss.root.rotation.y, 0.14);
+
+  // two-arm overhead SLAM (slower)
+  if (boss.slam >= 0) {
+    boss.slam += dt; const p = boss.slam / 0.9;
+    const armRot = p < 0.5 ? -2.4 * (p / 0.5) : -2.4 + 3.2 * ((p - 0.5) / 0.5);
+    if (ud.arms) { ud.arms[0].rotation.x = armRot; ud.arms[1].rotation.x = armRot; }
+    if (!boss.slamHit && p >= 0.55) { boss.slamHit = true; spawnShockwave(boss.x, boss.z); }
+    if (p >= 1) { boss.slam = -1; if (ud.arms) { ud.arms[0].rotation.x = ud.arms[1].rotation.x = 0; } }
+  } else if (boss.punch >= 0) {
+    // one-hand punch
+    boss.punch += dt; const p = boss.punch / 0.8;
+    const armRot = p < 0.5 ? -2.2 * (p / 0.5) : -2.2 + 3.4 * ((p - 0.5) / 0.5);
+    if (ud.arms) ud.arms[0].rotation.x = armRot;
+    if (!boss.punchHit && p >= 0.55) { boss.punchHit = true; if (d < Rr + 10) { playerHurt(22); const dd = d || 1; frog.vx += dx / dd * -12; frog.vz += dz / dd * -12; frog.vy = 7; } }
+    if (p >= 1) { boss.punch = -1; if (ud.arms) ud.arms[0].rotation.x = 0; }
+  } else if (boss.fire >= 0) {
+    boss.fire += dt; const p = boss.fire / 1.8;
+    if (ud.jaw) ud.jaw.rotation.x = 0.7;                 // mouth wide open
+    updateFireBreath(p);
+    if (p >= 1) { boss.fire = -1; fireBreath.visible = false; }
+  } else {
+    boss.armRaise = Math.max(0, (boss.armRaise || 0) - dt * 3);
+    const sway = Math.sin(tnow * 0.002) * 0.14;
+    if (ud.arms) { ud.arms[0].rotation.x = -boss.armRaise - 0.5 + sway; ud.arms[1].rotation.x = -boss.armRaise - 0.5 - sway; }
+  }
+
   boss.atkTimer -= dt;
-  if (boss.atkTimer <= 0 && d < 70) { doBossAttack(d); boss.atkTimer = 3.0 + Math.random() * 1.6; }
+  if (boss.atkTimer <= 0 && d < 90 && boss.slam < 0 && boss.punch < 0 && boss.fire < 0) { doBossAttack(d, Rr); boss.atkTimer = 2.8 + Math.random() * 1.8; }
   updateBossFx(dt);
-  boss.bar.visible = true; billboard(boss.bar, boss.root, boss.hp / boss.maxHp, 13);
+  boss.bar.visible = true; billboard(boss.bar, boss.root, boss.hp / boss.maxHp, boss.S * 5.4);
   document.getElementById("bossbar-fill").style.width = Math.max(0, boss.hp / boss.maxHp * 100) + "%";
   if (boss.hp <= 0) bossDefeated();
 }
-function doBossAttack(d) {
+function doBossAttack(d, Rr) {
   const r = Math.random();
-  if (d < 16 || r < 0.34) { boss.armRaise = 1.3; spawnShockwave(boss.x, boss.z); toast("⚠️ Ground slam — jump or run!"); }
-  else if (r < 0.67) { boss.armRaise = 1.0; spawnIcicles(); toast("⚠️ Icicles incoming!"); }
-  else { boss.armRaise = 1.1; spawnPillars(); toast("⚠️ Ice pillars erupting!"); }
+  if (d < Rr + 12 && r < 0.32) { boss.punch = 0; boss.punchHit = false; }
+  else if (r < 0.45) { boss.slam = 0; boss.slamHit = false; }
+  else if (r < 0.62) { const dd = d || 1; boss.fire = 0; boss.fireHit = false; boss.fireDx = (frog.x - boss.x) / dd; boss.fireDz = (frog.z - boss.z) / dd; }   // blue fire breath
+  else if (r < 0.76) { boss.armRaise = 1.0; spawnIcicles(); }
+  else if (r < 0.88) { boss.armRaise = 1.0; spawnIceBlocks(); }
+  else { boss.armRaise = 1.1; spawnPillars(); }
+}
+function updateFireBreath(p) {
+  fireBreath.visible = true;
+  const ry = boss.root.rotation.y, mx = boss.x + Math.sin(ry) * boss.S * 1.9, mz = boss.z + Math.cos(ry) * boss.S * 1.9;
+  const my = groundY(boss.x, boss.z) + boss.S * 4.2;
+  const len = 50 * Math.min(1, p * 2);
+  fireBreath.position.set(mx + boss.fireDx * len / 2, my - 2, mz + boss.fireDz * len / 2);
+  fireBreath.scale.set(3 + Math.random() * 0.6, len, 3 + Math.random() * 0.6);
+  fireBreath.lookAt(mx + boss.fireDx * len, my - 2, mz + boss.fireDz * len); fireBreath.rotateX(Math.PI / 2);
+  fireBreath.material.opacity = 0.6 + Math.random() * 0.3;
+  // hit: player on the beam line?
+  if (!boss.fireHit && p > 0.25) {
+    const px = frog.x - mx, pz = frog.z - mz, along = px * boss.fireDx + pz * boss.fireDz, perp = Math.abs(px * -boss.fireDz + pz * boss.fireDx);
+    if (along > 0 && along < 54 && perp < 4) { boss.fireHit = true; startFireHit(); }
+  }
 }
 function spawnShockwave(x, z) {
   const mesh = new THREE.Mesh(new THREE.TorusGeometry(1, 0.4, 8, 36), FX_ICE.clone());
@@ -1106,13 +1394,23 @@ function spawnShockwave(x, z) {
   bossFx.waves.push({ x, z, r: 2, maxR: 34, dmg: 22, hit: false, mesh });
 }
 function spawnIcicles() {
-  const hx = boss.x, hz = boss.z, hy = groundY(boss.x, boss.z) + 9;
+  const hx = boss.x, hz = boss.z, hy = groundY(boss.x, boss.z) + boss.S * 3;
   for (let i = 0; i < 4; i++) {
     const tx = frog.x + (Math.random() - 0.5) * 6, tz = frog.z + (Math.random() - 0.5) * 6;
     const dx = tx - hx, dz = tz - hz, dist = Math.hypot(dx, dz) || 1, sp = 26;
     const mesh = new THREE.Mesh(G.cone, FX_ICE); mesh.scale.set(0.4, 1.4, 0.4);
     mesh.position.set(hx, hy, hz); scene.add(mesh);
-    bossFx.icicles.push({ mesh, x: hx, y: hy, z: hz, vx: dx / dist * sp, vy: -7, vz: dz / dist * sp, life: 3 });
+    bossFx.icicles.push({ mesh, x: hx, y: hy, z: hz, vx: dx / dist * sp, vy: -7, vz: dz / dist * sp, life: 3, dmg: 14, r: 2.2 });
+  }
+}
+function spawnIceBlocks() {
+  const hx = boss.x, hz = boss.z, hy = groundY(boss.x, boss.z) + boss.S * 2.5;
+  for (let i = 0; i < 2; i++) {
+    const tx = frog.x + (Math.random() - 0.5) * 4, tz = frog.z + (Math.random() - 0.5) * 4;
+    const dx = tx - hx, dz = tz - hz, dist = Math.hypot(dx, dz) || 1, sp = 20;
+    const mesh = new THREE.Mesh(G.box, FX_ICE.clone()); mesh.scale.set(1.6, 1.6, 1.6);
+    mesh.position.set(hx, hy, hz); scene.add(mesh);
+    bossFx.icicles.push({ mesh, x: hx, y: hy, z: hz, vx: dx / dist * sp, vy: -4, vz: dz / dist * sp, life: 4, dmg: 26, r: 2.8, spin: true });
   }
 }
 function spawnPillars() {
@@ -1135,9 +1433,10 @@ function updateBossFx(dt) {
   // icicles
   for (let i = bossFx.icicles.length - 1; i >= 0; i--) {
     const ic = bossFx.icicles[i]; ic.x += ic.vx * dt; ic.y += ic.vy * dt; ic.z += ic.vz * dt; ic.vy -= 12 * dt; ic.life -= dt;
-    ic.mesh.position.set(ic.x, ic.y, ic.z); ic.mesh.lookAt(ic.x + ic.vx, ic.y + ic.vy, ic.z + ic.vz); ic.mesh.rotateX(Math.PI / 2);
+    if (ic.spin) { ic.mesh.position.set(ic.x, ic.y, ic.z); ic.mesh.rotation.x += dt * 4; ic.mesh.rotation.y += dt * 3; }
+    else { ic.mesh.position.set(ic.x, ic.y, ic.z); ic.mesh.lookAt(ic.x + ic.vx, ic.y + ic.vy, ic.z + ic.vz); ic.mesh.rotateX(Math.PI / 2); }
     const gyl = groundY(ic.x, ic.z);
-    if (Math.hypot(frog.x - ic.x, frog.z - ic.z) < 2.2 && Math.abs(frog.y + 1 - ic.y) < 3) { playerHurt(15); scene.remove(ic.mesh); bossFx.icicles.splice(i, 1); continue; }
+    if (Math.hypot(frog.x - ic.x, frog.z - ic.z) < (ic.r || 2.2) && Math.abs(frog.y + 1 - ic.y) < 3.5) { playerHurt(ic.dmg || 15); scene.remove(ic.mesh); bossFx.icicles.splice(i, 1); continue; }
     if (ic.y <= gyl || ic.life <= 0) { scene.remove(ic.mesh); bossFx.icicles.splice(i, 1); }
   }
   // pillars
@@ -1154,11 +1453,285 @@ function updateBossFx(dt) {
   }
 }
 function bossDefeated() {
-  if (won) return; won = true; boss.state = "dead";
+  if (won) return; won = true; boss.state = "dead"; flag.visible = false; fireBreath.visible = false;
   document.getElementById("bossbar").classList.add("hidden");
   for (const w of bossFx.waves) scene.remove(w.mesh); for (const ic of bossFx.icicles) scene.remove(ic.mesh); for (const p of bossFx.pillars) { if (p.tel) scene.remove(p.tel); if (p.mesh) scene.remove(p.mesh); }
   bossFx.waves.length = bossFx.icicles.length = bossFx.pillars.length = 0;
   startRescue();
+}
+function buildAmbulance() {
+  const g = new THREE.Group();
+  const body = mat({ color: 0xf2f2f2, roughness: 0.5 }), red = mat({ color: 0xd02a2a, roughness: 0.5 }),
+        glass = mat({ color: 0x223344, roughness: 0.2, metalness: 0.4 }), tyre = mat({ color: 0x1a1a1a, roughness: 0.8 }),
+        lightR = mat({ color: 0xff3030, emissive: 0xff0000, emissiveIntensity: 2 }), lightB = mat({ color: 0x3060ff, emissive: 0x0030ff, emissiveIntensity: 2 });
+  P(g, G.box, body, [0, 1.5, 0], null, [2.6, 2.2, 5.4]);            // box body
+  P(g, G.box, body, [0, 1.2, 3.0], null, [2.6, 1.6, 1.2]);         // cab
+  P(g, G.box, glass, [0, 1.6, 3.65], null, [2.2, 0.9, 0.2]);       // windshield
+  P(g, G.box, red, [1.31, 1.6, 0], null, [0.06, 0.7, 0.7]); P(g, G.box, red, [1.31, 1.6, 0], null, [0.06, 0.2, 1.6]); // red cross (R)
+  P(g, G.box, red, [-1.31, 1.6, 0], null, [0.06, 0.7, 0.7]); P(g, G.box, red, [-1.31, 1.6, 0], null, [0.06, 0.2, 1.6]);
+  const lr = P(g, G.box, lightR, [-0.5, 2.75, 2.6], null, [0.5, 0.3, 0.5], true), lb = P(g, G.box, lightB, [0.5, 2.75, 2.6], null, [0.5, 0.3, 0.5], true);
+  for (const sx of [-1, 1]) for (const sz of [-1.6, 2.3]) P(g, G.cyl, tyre, [sx * 1.2, 0.5, sz], [0, 0, Math.PI / 2], [0.6, 0.4, 0.6]);
+  g.userData.lights = [lr, lb];
+  return g;
+}
+let ambulance = null;
+
+// ============================================================
+//  Village — houses, villagers, a guardian
+// ============================================================
+function buildHouse() {
+  const g = new THREE.Group();
+  const log = mat({ color: 0x9c6b3f, roughness: 0.9 }), logD = mat({ color: 0x7a5230, roughness: 0.9 }),
+        roof = mat({ color: 0x4a3018, roughness: 0.85 }), snowM = mat({ color: 0xf0f5ff, roughness: 0.7 }),
+        win = mat({ color: 0xffd27a, emissive: 0xffaa33, emissiveIntensity: 1.6 }), frame = mat({ color: 0x5a3a22, roughness: 0.7 }),
+        stone = mat({ color: 0x7c8088, roughness: 1, flatShading: true });
+  const W = 6.5, D = 5.5, H = 4.0;             // front = +z
+  P(g, G.box, logD, [0, H / 2, 0], null, [W - 0.3, H, D - 0.3]);        // solid core (no gaps)
+  for (let i = 0; i < 5; i++) {                                        // stacked log rows w/ corner notches
+    const y = 0.5 + i * 0.78, m = i % 2 ? log : logD, ext = i % 2 ? 0.5 : 0;
+    P(g, G.cyl, m, [0, y, D / 2], [0, 0, Math.PI / 2], [0.32, W + ext, 0.32]);
+    P(g, G.cyl, m, [0, y, -D / 2], [0, 0, Math.PI / 2], [0.32, W + ext, 0.32]);
+    P(g, G.cyl, m, [-W / 2, y, 0], [Math.PI / 2, 0, 0], [0.32, D + (0.5 - ext), 0.32]);
+    P(g, G.cyl, m, [W / 2, y, 0], [Math.PI / 2, 0, 0], [0.32, D + (0.5 - ext), 0.32]);
+  }
+  // peaked gable roof — two slabs meeting cleanly at the ridge
+  const roofH = 2.3, ridgeY = H + roofH, midY = H + roofH / 2, ra = 0.69, rl = 3.6, rz = D / 4;
+  P(g, G.box, roof, [0, midY, rz], [ra, 0, 0], [W + 1.0, 0.3, rl]);
+  P(g, G.box, roof, [0, midY, -rz], [-ra, 0, 0], [W + 1.0, 0.3, rl]);
+  P(g, G.box, snowM, [0, midY + 0.22, rz], [ra, 0, 0], [W + 1.1, 0.16, rl]);
+  P(g, G.box, snowM, [0, midY + 0.22, -rz], [-ra, 0, 0], [W + 1.1, 0.16, rl]);
+  // gable-end triangles (close the front/back openings under the peak)
+  const gable = mat({ color: 0x7a5230, roughness: 0.9, side: THREE.DoubleSide });
+  P(g, G.tri, gable, [0, H - 0.1, D / 2 + 0.02], null, [W / 2 + 0.1, roofH + 0.1, 1]);
+  P(g, G.tri, gable, [0, H - 0.1, -D / 2 - 0.02], null, [W / 2 + 0.1, roofH + 0.1, 1]);
+  // stone chimney with snow cap
+  P(g, G.box, stone, [W * 0.32, H + 1.7, -D * 0.2], null, [0.9, 2.4, 0.9]);
+  P(g, G.box, snowM, [W * 0.32, H + 2.95, -D * 0.2], null, [1.0, 0.2, 1.0]);
+  // door + warm windows
+  P(g, G.box, frame, [0, 1.2, D / 2 + 0.35], null, [1.3, 2.4, 0.18]);
+  P(g, G.box, frame, [-2.0, 2.3, D / 2 + 0.36], null, [1.1, 1.1, 0.1]); P(g, G.box, win, [-2.0, 2.3, D / 2 + 0.3], null, [0.86, 0.86, 0.2], true);
+  P(g, G.box, frame, [2.0, 2.3, D / 2 + 0.36], null, [1.1, 1.1, 0.1]); P(g, G.box, win, [2.0, 2.3, D / 2 + 0.3], null, [0.86, 0.86, 0.2], true);
+  // porch: overhang + posts + bench + step
+  P(g, G.box, roof, [0, 3.5, D / 2 + 1.4], null, [3.8, 0.2, 2.0]);
+  P(g, G.cyl, logD, [-1.6, 1.75, D / 2 + 2.2], null, [0.16, 3.5, 0.16]); P(g, G.cyl, logD, [1.6, 1.75, D / 2 + 2.2], null, [0.16, 3.5, 0.16]);
+  P(g, G.box, logD, [0, 0.5, D / 2 + 1.7], null, [2.0, 0.3, 0.5]); P(g, G.box, logD, [0, 0.85, D / 2 + 1.5], null, [2.0, 0.5, 0.18]);
+  P(g, G.box, snowM, [0, 0.18, D / 2 + 1.0], null, [2.6, 0.36, 0.8]);
+  return g;
+}
+// one shared cozy cabin interior you teleport into (placed off-map)
+function buildCabinInterior(cx, cz, fy) {
+  const g = new THREE.Group();
+  const wall = mat({ color: 0xa9743f, roughness: 0.85, side: THREE.DoubleSide }),
+        floorM = mat({ color: 0xb87c46, roughness: 0.8 }), stone = mat({ color: 0x8a8f98, roughness: 1, flatShading: true }),
+        fireM = mat({ color: 0xffae3a, emissive: 0xff7a10, emissiveIntensity: 2.8 }),
+        rug = mat({ color: 0x7a3a2a, roughness: 0.9 }), couch = mat({ color: 0x9a7250, roughness: 0.8 }),
+        wood = mat({ color: 0x6e4524, roughness: 0.85 }), lampM = mat({ color: 0xfff0c0, emissive: 0xffcf6a, emissiveIntensity: 2 }),
+        antler = mat({ color: 0xe8e0d0, roughness: 0.6 }), pic = mat({ color: 0x3a5a3a, roughness: 0.7 }), cushion = mat({ color: 0xb04a3a, roughness: 0.8 });
+  const HX = 7, HZ = 9, H = 5;
+  P(g, G.box, floorM, [0, -0.1, 0], null, [HX * 2, 0.4, HZ * 2]);
+  P(g, G.box, wall, [0, H / 2, -HZ], null, [HX * 2, H, 0.3]);
+  P(g, G.box, wall, [0, H / 2, HZ], null, [HX * 2, H, 0.3]);
+  P(g, G.box, wall, [-HX, H / 2, 0], null, [0.3, H, HZ * 2]);
+  P(g, G.box, wall, [HX, H / 2, 0], null, [0.3, H, HZ * 2]);
+  P(g, G.box, wall, [0, H + 1.6, -3.5], [-0.5, 0, 0], [HX * 2.1, 0.3, HZ * 1.5]);   // vaulted ceiling (∧)
+  P(g, G.box, wall, [0, H + 1.6, 3.5], [0.5, 0, 0], [HX * 2.1, 0.3, HZ * 1.5]);
+  // stone fireplace with bright warm fire
+  P(g, G.box, stone, [0, 2.2, -HZ + 0.5], null, [3.6, 4.4, 0.7]);
+  P(g, G.box, stone, [0, 4.9, -HZ + 0.5], null, [1.0, 1.8, 0.9]);
+  const fire = P(g, G.box, fireM, [0, 1.35, -HZ + 1.0], null, [1.5, 1.2, 0.45], true);
+  P(g, G.box, wood, [0, 0.45, -HZ + 1.1], null, [2.0, 0.3, 0.6]);                  // hearth logs
+  const fl = new THREE.PointLight(0xffac55, 3.4, 34); fl.position.set(0, 1.9, -HZ + 2.0); g.add(fl);
+  const fl2 = new THREE.PointLight(0xffd9a0, 1.6, 30); fl2.position.set(0, 4.5, 2); g.add(fl2);  // soft ceiling warmth
+  // antlers + picture above the fireplace
+  P(g, G.cone, antler, [-0.6, 5.0, -HZ + 0.9], [0.3, 0, 0.6], [0.1, 0.9, 0.1]); P(g, G.cone, antler, [0.6, 5.0, -HZ + 0.9], [0.3, 0, -0.6], [0.1, 0.9, 0.1]);
+  P(g, G.box, pic, [-4.5, 3.0, -HZ + 0.3], null, [1.6, 1.2, 0.1]); P(g, G.box, pic, [4.5, 3.0, -HZ + 0.3], null, [1.6, 1.2, 0.1]);
+  // table lamp (emissive + light) on a side table
+  P(g, G.cyl, wood, [-5.6, 0.6, 6], null, [0.5, 1.2, 0.5]); P(g, G.sph, lampM, [-5.6, 1.6, 6], null, [0.4, 0.5, 0.4], true);
+  // rug + coffee table + couches + cushions
+  P(g, G.box, rug, [0, 0.13, 2.5], null, [7, 0.06, 6]);
+  P(g, G.box, wood, [0, 0.75, 2.5], null, [2.8, 0.3, 1.4]); P(g, G.box, wood, [0, 0.4, 2.5], null, [2.4, 0.5, 1.0]);
+  P(g, G.box, couch, [0, 0.7, 6.4], null, [5.6, 1.0, 1.6]); P(g, G.box, couch, [0, 1.3, 7.1], null, [5.6, 1.2, 0.4]);
+  P(g, G.box, cushion, [-1.6, 1.25, 6.4], null, [1.0, 0.6, 1.0]); P(g, G.box, cushion, [1.6, 1.25, 6.4], null, [1.0, 0.6, 1.0]);
+  P(g, G.box, couch, [-5.2, 0.7, 2.5], null, [1.6, 1.0, 3.2]); P(g, G.box, couch, [5.2, 0.7, 2.5], null, [1.6, 1.0, 3.2]);
+  g.position.set(cx, fy, cz); scene.add(g);
+  return { g, fire, fl, cx, cz, fy, hx: HX, hz: HZ };
+}
+const cabinRoom = buildCabinInterior(900, 0, -140);   // hidden off-map & underground; entered houses teleport here
+
+// a towering snow tsunami shown during an avalanche
+const avMesh = new THREE.Group();
+{
+  const avMat = mat({ color: 0xffffff, transparent: true, opacity: 0.95, roughness: 1 }),
+        avMat2 = mat({ color: 0xdCeaf6, transparent: true, opacity: 0.95, roughness: 1, flatShading: true });
+  const COLS = 9, ROWS = 6;
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const m = new THREE.Mesh(G.sph, r === 0 ? avMat2 : avMat);
+    const s = 7 + Math.random() * 6 + r;                       // bigger toward the top
+    m.scale.set(s, s, s);
+    m.position.set((c - (COLS - 1) / 2) * 17 + (Math.random() - 0.5) * 6,
+                   r * 8 + Math.random() * 4,
+                   -r * 5 + (Math.random() - 0.5) * 6);          // higher rows curl forward (downhill crest)
+    avMesh.add(m);
+  }
+}
+avMesh.visible = false; scene.add(avMesh);
+
+// blue fire-breath beam
+const fireBreath = new THREE.Mesh(G.cone, mat({ color: 0x8fd0ff, emissive: 0x33aaff, emissiveIntensity: 2.6, transparent: true, opacity: 0.8 }));
+fireBreath.visible = false; scene.add(fireBreath);
+function spawnHouse(x, z, rot) {
+  const g = buildHouse(); g.position.set(x, groundY(x, z), z); g.rotation.y = rot; scene.add(g);
+  houses.push({ root: g, x, z, fy: groundY(x, z), hp: 120, maxHp: 120, fallen: false });
+}
+function buildVillager(color) {
+  const g = new THREE.Group();
+  const c = mat({ color, roughness: 0.75 }), skin = mat({ color: 0xe8c2a0, roughness: 0.6 }), dark = mat({ color: 0x33271a, roughness: 0.7 });
+  P(g, G.box, c, [0, 0.95, 0], null, [0.6, 0.95, 0.42]);
+  P(g, G.sph, skin, [0, 1.6, 0], null, [0.27, 0.3, 0.27]);
+  P(g, G.box, dark, [0, 1.85, 0], null, [0.36, 0.2, 0.36]);             // hat
+  P(g, G.sph, M.eyeB, [-0.1, 1.6, 0.24], null, [0.05, 0.06, 0.04], true);
+  P(g, G.sph, M.eyeB, [0.1, 1.6, 0.24], null, [0.05, 0.06, 0.04], true);
+  const legs = [], arms = [];
+  for (const sx of [-1, 1]) { legs.push(P(g, G.box, dark, [sx * 0.16, 0.35, 0], null, [0.18, 0.7, 0.22])); arms.push(P(g, G.box, c, [sx * 0.42, 1.0, 0], null, [0.15, 0.6, 0.2])); }
+  g.userData = { legs, arms, walk: 0 };
+  return g;
+}
+function spawnVillager(x, z) {
+  const cols = [0x9a4b3a, 0x3a5a9a, 0x4a7a3a, 0x8a6aaa, 0xaa7a3a];
+  const g = buildVillager(cols[Math.floor(Math.random() * cols.length)]);
+  g.position.set(x, groundY(x, z), z); scene.add(g);
+  const bar = makeBar(0x88dd88); scene.add(bar);
+  villagers.push({ root: g, bar, hp: 40, maxHp: 40, hx: x, hz: z, tx: x, tz: z, wanderT: 0, walk: 0 });
+}
+function buildGuardianMesh() {
+  const g = new THREE.Group();
+  const armor = mat({ color: 0x9098ad, metalness: 0.5, roughness: 0.4, flatShading: true }),
+        dark = mat({ color: 0x444b59, roughness: 0.6 }),
+        ice = mat({ color: 0xbfe6ff, emissive: 0x55b0ee, emissiveIntensity: 1.0, roughness: 0.3 }),
+        cape = mat({ color: 0x596273, roughness: 0.85, side: THREE.DoubleSide });
+  P(g, G.box, armor, [0, 1.7, 0], null, [1.3, 2.0, 0.9]);
+  P(g, G.box, cape, [0, 1.8, -0.55], null, [1.5, 2.6, 0.06]);
+  P(g, G.box, dark, [0, 2.95, 0], null, [0.75, 0.75, 0.75]);            // head
+  P(g, G.cone, armor, [0, 3.6, 0], null, [0.34, 0.8, 0.34]);           // helmet crest
+  P(g, G.sph, ice, [-0.2, 2.95, 0.38], null, [0.1, 0.1, 0.1], true);
+  P(g, G.sph, ice, [0.2, 2.95, 0.38], null, [0.1, 0.1, 0.1], true);
+  for (const sx of [-1, 1]) P(g, G.box, armor, [sx * 0.95, 2.45, 0], null, [0.7, 0.55, 1.0]); // pauldrons
+  const arms = [], legs = [];
+  for (const sx of [-1, 1]) { arms.push(P(g, G.box, dark, [sx * 1.0, 1.7, 0], null, [0.42, 1.4, 0.42])); legs.push(P(g, G.box, dark, [sx * 0.42, 0.65, 0], null, [0.48, 1.4, 0.55])); }
+  P(g, G.box, ice, [1.05, 1.4, 0.4], null, [0.14, 2.2, 0.16]);          // greatsword
+  g.userData = { arms, legs, walk: 0 };
+  return g;
+}
+function spawnVillage(cx, cz) {
+  for (let i = 0; i < 6; i++) { const a = i / 6 * 6.28; const hx = cx + Math.cos(a) * 16, hz = cz + Math.sin(a) * 16; spawnHouse(hx, hz, a + Math.PI / 2); }
+  for (let i = 0; i < 5; i++) { const a = Math.random() * 6.28, r = 2 + Math.random() * 8; spawnVillager(cx + Math.cos(a) * r, cz + Math.sin(a) * r); }
+  const gm = buildGuardianMesh(); gm.position.set(cx, groundY(cx, cz - 6), cz - 6); scene.add(gm);
+  const bar = makeBar(0xffcc44); scene.add(bar);
+  guardian = { root: gm, bar, hp: 320, maxHp: 320, x: cx, z: cz - 6, hx: cx, hz: cz - 6, walk: 0, cd: 0, atkAnim: 0 };
+}
+function angerVillage() {
+  if (!villageHostile) { villageHostile = true; toast("😠 The village Guardian is enraged!"); }
+}
+function animLegs(ud, moving, walk, amp) {
+  if (ud.legs) for (let i = 0; i < ud.legs.length; i++) ud.legs[i].rotation.x = Math.sin(walk + (i ? Math.PI : 0)) * (moving ? amp : 0);
+  if (ud.arms) for (let i = 0; i < ud.arms.length; i++) ud.arms[i].rotation.x = Math.sin(walk + (i ? 0 : Math.PI)) * (moving ? amp * 0.7 : 0);
+}
+function updateVillage(dt) {
+  // villagers
+  for (let i = villagers.length - 1; i >= 0; i--) {
+    const v = villagers[i];
+    if (v.hp <= 0) { scene.remove(v.root); scene.remove(v.bar); villagers.splice(i, 1); angerVillage(); toast("💀 You killed a villager…"); continue; }
+    const px = v.root.position.x, pz = v.root.position.z;
+    let moving = false;
+    if (villageHostile) {            // flee from the player
+      const dx = px - frog.x, dz = pz - frog.z, d = Math.hypot(dx, dz) || 1;
+      if (d < 18) { moveTowards(v.root, px + dx / d * 6, pz + dz / d * 6, 5 * dt); moving = true; }
+    } else {
+      v.wanderT -= dt;
+      if (v.wanderT <= 0) { v.wanderT = 2 + Math.random() * 3; v.tx = v.hx + (Math.random() - 0.5) * 10; v.tz = v.hz + (Math.random() - 0.5) * 10; }
+      if (Math.hypot(v.tx - px, v.tz - pz) > 0.6) { moveTowards(v.root, v.tx, v.tz, 2.2 * dt); moving = true; }
+    }
+    if (moving) v.walk += dt * 9; animLegs(v.root.userData, moving, v.walk, 0.6);
+    const show = villageHostile || v.hp < v.maxHp; v.bar.visible = show; if (show) billboard(v.bar, v.root, v.hp / v.maxHp, 2.2);
+  }
+  // houses collapse when destroyed
+  for (const h of houses) {
+    if (!h.fallen && h.hp <= 0) { h.fallen = true; h.root.rotation.z = 0.5; h.root.position.y -= 1.2; angerVillage(); toast("🏚️ A house collapses!"); }
+  }
+  // guardian
+  if (guardian) {
+    if (guardian.hp <= 0) {
+      scene.remove(guardian.root); scene.remove(guardian.bar);
+      inv.iron += 8; toast("🛡️ Guardian defeated! +8 iron"); updateHud(); guardian = null; return;
+    }
+    if (guardian.cd > 0) guardian.cd -= dt; if (guardian.atkAnim > 0) guardian.atkAnim -= dt;
+    const gx = guardian.x, gz = guardian.z, ud = guardian.root.userData;
+    let moving = false;
+    if (villageHostile) {
+      const dx = frog.x - gx, dz = frog.z - gz, d = Math.hypot(dx, dz);
+      guardian.root.rotation.y = Math.atan2(dx, dz);
+      if (d > 2.6) { guardian.x += dx / d * 5.5 * dt; guardian.z += dz / d * 5.5 * dt; moving = true; }
+      else if (guardian.cd <= 0) { guardian.cd = 1.2; guardian.atkAnim = 0.3; frog.hp -= 16; damageFlash(); }
+    } else {
+      // patrol slowly around home
+      guardian.root.rotation.y += dt * 0.3;
+    }
+    guardian.root.position.set(guardian.x, groundY(guardian.x, guardian.z), guardian.z);
+    if (moving) guardian.walk += dt * 8; animLegs(ud, moving, guardian.walk, 0.4);
+    if (ud.arms && guardian.atkAnim > 0) { ud.arms[0].rotation.x = -2.2 * (guardian.atkAnim / 0.3); }
+    const show = villageHostile || guardian.hp < guardian.maxHp; guardian.bar.visible = show; if (show) billboard(guardian.bar, guardian.root, guardian.hp / guardian.maxHp, 4.4);
+  }
+}
+function nearShelter() {
+  if (under || inHouse) return true;
+  for (const c of caves) if (Math.hypot(frog.x - c.x, frog.z - c.z) < c.R) return true;   // inside a cave dome
+  for (const h of houses) if (!h.fallen && Math.hypot(frog.x - h.x, frog.z - h.z) < 9) return true;
+  return false;
+}
+
+// ============================================================
+//  Crevasses (hidden cracks)
+// ============================================================
+function spawnCrevasse(x, z) {
+  const r = 3.2;
+  const disc = new THREE.Mesh(G.cyl, mat({ color: 0xc4d4ec, roughness: 0.9 }));
+  disc.position.set(x, groundY(x, z) + 0.06, z); disc.scale.set(r, 0.12, r * 1.4); disc.rotation.y = Math.random() * 3;
+  scene.add(disc); rooms.push(disc);   // (reuse rooms[] for cleanup of plain meshes)
+  crevasses.push({ x, z, r });
+}
+
+// ============================================================
+//  Avalanche
+// ============================================================
+const GATE2_Z = -10;
+function updateAvalanche(dt) {
+  if (frog.z <= GATE2_Z) { if (avState === "warn") { avState = "idle"; avMesh.visible = false; document.getElementById("avwarn").classList.add("hidden"); } return; }
+  if (avState === "idle") {
+    if (avCount >= 2) return;   // only two avalanches per game
+    avTimer -= dt;
+    if (avTimer <= 0) { avState = "warn"; avT = 5; avCount++; document.getElementById("avwarn").classList.remove("hidden"); }
+  } else if (avState === "warn") {
+    avT -= dt;
+    // visible wall of snow rolling down from uphill toward (and past) the player
+    avMesh.visible = true;
+    const prog = 1 - avT / 5, az = frog.z + 85 - prog * 120;
+    avMesh.position.set(frog.x, groundY(frog.x, az) + 9, az);
+    for (let i = 0; i < avMesh.children.length; i++) { const c = avMesh.children[i]; c.rotation.x += dt * 2.2; c.rotation.y += dt * 1.6; }
+    if (avT <= 0) {
+      avMesh.visible = false;
+      document.getElementById("avwarn").classList.add("hidden");
+      avState = "idle"; avTimer = 45 + Math.random() * 50;
+      if (!nearShelter()) {
+        frog.hp -= 66; damageFlash();
+        // flung downhill ~10m, but not back behind a climbed glacier
+        let limit = -HALF + 4;
+        for (const g of gates) if (g.climbed && g.z < frog.z && g.z + 3 > limit) limit = g.z + 3;
+        frog.z = Math.max(limit, frog.z - 10); frog.vz = -6; frog.vy = 4;
+        toast("🏔️ Caught in the avalanche! -66 health");
+      } else toast("⛺ You weathered the avalanche in shelter.");
+      if (frog.hp <= 0) lose();
+    }
+  }
 }
 
 // ---------- Trees fall anim ----------
@@ -1176,7 +1749,7 @@ function updateWeather(dt) {
   if (weatherTimer <= 0) { const s = ["clear","snow","snow","blizzard"]; let n = s[Math.floor(Math.random()*s.length)]; if (n === weather && n !== "clear") n = "clear"; setWeather(n); weatherTimer = 18 + Math.random()*18; }
   const c = WEATHER[weather], k = Math.min(1, dt * 1.8);
   scene.fog.near += (c.fogN - scene.fog.near) * k; scene.fog.far += (c.fogF - scene.fog.far) * k;
-  sun.intensity += (c.sun - sun.intensity) * k;
+  if (inCaveNow) sun.intensity = 0; else sun.intensity += (c.sun - sun.intensity) * k;
   skyMat.uniforms.top.value.lerp(_t.set(c.top), k); skyMat.uniforms.bot.value.lerp(_b.set(c.bot), k);
   scene.fog.color.copy(skyMat.uniforms.bot.value);
 }
@@ -1219,6 +1792,12 @@ function endCutscene() {
 function updateCutscene(dt) {
   if (cutscene.type === "awaken") return updateAwaken(dt);
   if (cutscene.type === "rescue") return updateRescue(dt);
+  if (cutscene.type === "firehit") return updateFireHit(dt);
+  // HOLD space for 2 seconds to skip the intro
+  cutscene.skipHold = keys[" "] ? (cutscene.skipHold || 0) + dt : 0;
+  const sh = document.getElementById("skiphint");
+  sh.textContent = cutscene.skipHold > 0 ? `Keep holding to skip… ${(1 - cutscene.skipHold).toFixed(1)}s` : "Hold Space to skip";
+  if (cutscene.skipHold >= 1) { endCutscene(); return; }
   const c = cutscene; c.t += dt; const t = c.t, fm = frogModel.userData;
   if (t < 3.2) {                       // hiking up
     setSubtitle("High on the icy shoulders of Mount Everest…");
@@ -1258,35 +1837,65 @@ function updateAwaken(dt) {
   const c = cutscene; c.t += dt; const t = c.t, s = boss.root.userData.gScale, bx = boss.x, bz = boss.z;
   const k = Math.min(1, t / 4), by = boss.buriedY + (boss.standY - boss.buriedY) * k;
   boss.root.position.set(bx, by, bz); boss.root.rotation.y = Math.sin(t * 3) * 0.12;
-  flag.visible = true; flag.position.set(bx, by + 3.4 * s, bz); flag.rotation.z = 0.45;
-  camera.position.set(bx, boss.standY + 11, bz - 32); camera.lookAt(bx, boss.standY + 9, bz);
+  flag.visible = true; flag.position.set(bx, by + 4.5 * s, bz + 1.0 * s); flag.rotation.set(0.12, 0, 0.14);
+  camera.position.set(bx, boss.standY + s * 6, bz - s * 12); camera.lookAt(bx, boss.standY + s * 3, bz);
   setSubtitle(t > 1.7 ? "THE SNOW GIANT AWAKENS!" : "Something stirs beneath the snow…");
   if (t >= 4.6) {
-    boss.state = "active"; boss.atkTimer = 2.6; flag.visible = false;
+    boss.state = "active"; boss.atkTimer = 2.6;
     document.getElementById("bossbar").classList.remove("hidden");
     setSubtitle(""); cutscene = null; camInit = false; canvas.requestPointerLock();
   }
 }
-function startRescue() { cutscene = { type: "rescue", t: 0 }; document.exitPointerLock && document.exitPointerLock(); setPrompt(""); }
+function startFireHit() {
+  if (boss) boss.fire = -1; fireBreath.visible = false;
+  frog.hp -= 30;
+  cutscene = { type: "firehit", t: 0 }; document.exitPointerLock && document.exitPointerLock(); setPrompt("");
+}
+function updateFireHit(dt) {
+  const t = cutscene.t += dt;
+  setSubtitle("🔥 Caught in the blue flames! −30 health");
+  fireBreath.visible = true;
+  fireBreath.position.set(frog.x, frog.y + 1.6, frog.z); fireBreath.scale.set(3.2, 5, 3.2); fireBreath.rotation.set(Math.PI, 0, 0);
+  fireBreath.material.opacity = 0.55 + Math.random() * 0.4;
+  frogModel.rotation.set(Math.sin(t * 26) * 0.12, frog.yaw, Math.sin(t * 21) * 0.1);
+  const ang = t * 1.3; camera.position.set(frog.x + Math.cos(ang) * 6, frog.y + 3.6, frog.z + Math.sin(ang) * 6); camera.lookAt(frog.x, frog.y + 1.5, frog.z);
+  if (t >= 1.9) {
+    cutscene = null; setSubtitle(""); fireBreath.visible = false; frogModel.rotation.set(0, frog.yaw, 0); camInit = false;
+    if (frog.hp <= 0) lose(); else canvas.requestPointerLock();
+  }
+}
+function startRescue() {
+  cutscene = { type: "rescue", t: 0 }; document.exitPointerLock && document.exitPointerLock(); setPrompt("");
+  if (ambulance) scene.remove(ambulance);
+  ambulance = buildAmbulance(); ambulance.position.set(frog.x + 50, groundY(frog.x + 50, frog.z - 10), frog.z - 10); ambulance.rotation.y = -Math.PI / 2; scene.add(ambulance);
+}
 function updateRescue(dt) {
   const c = cutscene; c.t += dt; const t = c.t;
   frogModel.rotation.set(Math.min(1.4, t * 0.9), frog.yaw, 0);
   frogModel.position.set(frog.x, groundY(frog.x, frog.z) + 0.3, frog.z);
   let i = 0;
   for (const a of allies) { if (a.state !== "active") continue; if (a.hp <= 0) { a.hp = a.maxHp; a.root.visible = true; } const ang = i * 2.1; moveTowards(a.root, frog.x + Math.cos(ang) * 3, frog.z + Math.sin(ang) * 3, 4 * dt); i++; }
-  setSubtitle(t > 2.6 ? "Your companions carry you home. You did it! 🐸🏔️" : "You collapse from the battle…");
-  const ang = t * 0.5;
-  camera.position.set(frog.x + Math.cos(ang) * 11, frog.y + 6, frog.z + Math.sin(ang) * 11); camera.lookAt(frog.x, frog.y + 1, frog.z);
-  if (t >= 6.5) { cutscene = null; setSubtitle(""); frogModel.rotation.set(0, frog.yaw, 0); showWin(); }
+  // ambulance drives up to the fallen hero
+  if (ambulance) {
+    const tx = frog.x + 6, tz = frog.z, ax = ambulance.position.x, k = Math.min(1, t / 4);
+    ambulance.position.x = (frog.x + 50) + (tx - (frog.x + 50)) * (k * k * (3 - 2 * k));
+    ambulance.position.z = tz; ambulance.position.y = groundY(ambulance.position.x, tz);
+    const blink = Math.floor(t * 5) % 2 === 0;                       // flashing lights
+    if (ambulance.userData.lights) { ambulance.userData.lights[0].visible = blink; ambulance.userData.lights[1].visible = !blink; }
+  }
+  setSubtitle(t > 3 ? "🚑 Mountain rescue carries you to safety. You did it! 🐸🏔️" : "You collapse from the battle…");
+  const ang = t * 0.4;
+  camera.position.set(frog.x + Math.cos(ang) * 13, frog.y + 7, frog.z + Math.sin(ang) * 13); camera.lookAt(frog.x + 2, frog.y + 1, frog.z);
+  if (t >= 7) { cutscene = null; setSubtitle(""); frogModel.rotation.set(0, frog.yaw, 0); if (ambulance) { scene.remove(ambulance); ambulance = null; } showWin(); }
 }
 
 // ---------- Keys ----------
 addEventListener("keydown", (e) => {
   const k = e.key.toLowerCase();
-  if (cutscene) { if (cutscene.type === "intro" && (k === " " || k === "enter" || k === "escape")) endCutscene(); return; }
+  if (cutscene) return;   // intro is skipped by HOLDING space (handled in updateCutscene)
   if (k === "c") { if (running) toggleCraft(); return; }
   if (!running || craftOpen) return;
-  if (k === "e") doInteract();
+  if (k === "e" && !frog.crevasse) doInteract();
   else if (k === "f") commandAllies();
 });
 
@@ -1298,11 +1907,10 @@ function loop(now) {
   if (cutscene) {
     updateCutscene(dt);
   } else if (running && !craftOpen) {
-    updateFrog(dt); updateCombat(dt); updateTrees(dt); updateAllies(dt); updateMonsters(dt); updateWeather(dt);
-    interactPrompt(); updateCamera(); updateHud();
+    updateFrog(dt); updateCombat(dt); updateTrees(dt); updateAllies(dt); updateMonsters(dt); updateVillage(dt); updateWeather(dt); updateAvalanche(dt);
+    updateFires(dt, now); updateDmgPopups(dt); updatePickups(dt); interactPrompt(); updateCamera(); updateHud();
   } else if (!running) { camYaw += dt * 0.08; updateCamera(); }
   sky.position.copy(camera.position); snowMat.uniforms.uCam.value.copy(camera.position);
-  for (const f of fires) f.flame.scale.y = 1 + Math.sin(now * 0.02) * 0.2;
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
 }
